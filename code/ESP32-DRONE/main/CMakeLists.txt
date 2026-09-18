@@ -1,0 +1,27 @@
+# ESP32-DRONE main component CMakeLists.txt
+idf_component_register(
+    SRCS 
+        "main.cpp"
+        "imu.cpp"
+        "attitude.cpp"
+        "pid.cpp"
+        "mixer.cpp"
+        "motors.cpp"
+        "receiver.cpp"
+        "battery.cpp"
+        "safety.cpp"
+        "flight_controller.cpp"
+        "cli.cpp"
+    INCLUDE_DIRS 
+        "."
+    REQUIRES 
+        driver
+        esp_timer
+        esp_wifi
+        esp_now
+        nvs_flash
+        freertos
+        esp_adc
+        esp_system
+        log
+)

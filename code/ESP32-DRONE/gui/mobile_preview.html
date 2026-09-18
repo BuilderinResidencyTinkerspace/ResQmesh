@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>AeroCommand // Drone Mobile Flight Controller</title>
+  <style>
+    :root {
+      --bg-deep: #080c14;
+      --bg-surface: #0f1726;
+      --bg-panel: rgba(15, 23, 38, 0.85);
+      --border-line: rgba(255, 255, 255, 0.09);
+      --border-glow: rgba(56, 189, 248, 0.35);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: none;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--bg-deep);
+      color: var(--text-main);
+      height: 100vh;
+      height: 100dvh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.05) 0%, transparent 60%),
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 30px 30px, 30px 30px;
+    }
+
+    /* Top Telemetry Cockpit Bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-line);
+      height: 52px;
+      flex-shrink: 0;
+      z-index: 50;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-rose);
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .status-dot.online {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+    }
+
+    .status-dot.armed {
+      background: var(--accent-amber);
+      box-shadow: 0 0 10px var(--accent-amber);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    .drone-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .hud-pills {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+    }
+
+    .hud-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-muted);
+    }
+
+    .hud-item strong {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .hud-item.batt strong {
+      color: var(--accent-cyan);
+    }
+
+    .hud-item.ping strong {
+      color: var(--accent-emerald);
+    }
+
+    .btn-kill {
+      background: rgba(244, 63, 94, 0.2);
+      border: 1px solid var(--accent-rose);
+      color: var(--accent-rose);
+      font-family: var(--font-ui);
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 6px 14px;
+      border-radius: 6px;
+      letter-spacing: 0.8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.25);
+    }
+
+    .btn-kill:active {
+      background: var(--accent-rose);
+      color: #fff;
+    }
+
+    /* Main Dual Gimbal Deck */
+    .flight-deck {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      padding: 16px;
+      gap: 16px;
+      align-items: center;
+      justify-items: center;
+      position: relative;
+    }
+
+    @media (orientation: portrait) {
+      .flight-deck {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr auto;
+      }
+      .center-dock {
+        grid-column: span 2;
+        order: 2;
+        width: 100%;
+      }
+    }
+
+    /* Gimbal Housing */
+    .gimbal-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .gimbal-outer {
+      position: relative;
+      width: 210px;
+      height: 210px;
+      border-radius: 50%;
+      background: radial-gradient(circle at center, #0f1826 0%, #080c14 100%);
+      border: 1px solid var(--border-line);
+      box-shadow: inset 0 0 24px rgba(0,0,0,0.8), 0 8px 24px rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    @media (max-height: 480px) {
+      .gimbal-outer {
+        width: 160px;
+        height: 160px;
+      }
+    }
+
+    /* Concentric rings & crosshairs inside well */
+    .gimbal-grid {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .gimbal-grid::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-50%);
+    }
+
+    .gimbal-grid::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 10%;
+      bottom: 10%;
+      width: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateX(-50%);
+    }
+
+    .gimbal-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px dashed rgba(255, 255, 255, 0.07);
+      pointer-events: none;
+    }
+
+    .gimbal-ring.r50 { width: 50%; height: 50%; }
+    .gimbal-ring.r75 { width: 75%; height: 75%; }
+
+    /* Thumb Puck Handle */
+    .gimbal-puck {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #253347 0%, #0d1522 100%);
+      border: 1.5px solid var(--accent-cyan);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.4), inset 0 0 8px rgba(0,0,0,0.8);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: box-shadow 0.15s ease;
+      will-change: transform;
+    }
+
+    .gimbal-puck::after {
+      content: "";
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 8px var(--accent-cyan);
+    }
+
+    .gimbal-puck.active {
+      border-color: #fff;
+      box-shadow: 0 0 24px var(--accent-cyan), inset 0 0 12px rgba(56, 189, 248, 0.5);
+    }
+
+    /* Gimbal Digital Readout Pill */
+    .gimbal-readout {
+      display: flex;
+      gap: 12px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: rgba(15, 23, 38, 0.7);
+      border: 1px solid var(--border-line);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .gimbal-readout span strong {
+      color: var(--accent-cyan);
+    }
+
+    /* Center Control Dock */
+    .center-dock {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-line);
+      border-radius: 14px;
+      min-width: 180px;
+    }
+
+    /* Slide to Arm Track */
+    .arm-slider-track {
+      position: relative;
+      width: 170px;
+      height: 44px;
+      background: #050810;
+      border: 1px solid var(--border-line);
+      border-radius: 22px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .arm-slider-track.armed {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: var(--accent-amber);
+    }
+
+    .arm-slider-label {
+      position: absolute;
+      width: 100%;
+      text-align: center;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      pointer-events: none;
+      padding-left: 20px;
+    }
+
+    .arm-slider-track.armed .arm-slider-label {
+      padding-left: 0;
+      color: var(--accent-amber);
+    }
+
+    .arm-slider-handle {
+      position: absolute;
+      left: 3px;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+      transition: transform 0.1s linear;
+      will-change: transform;
+    }
+
+    .arm-slider-handle svg {
+      width: 14px;
+      height: 14px;
+      fill: var(--accent-cyan);
+    }
+
+    .center-actions {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .btn-dock {
+      flex: 1;
+      background: #1e293b;
+      border: 1px solid var(--border-line);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 7px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s ease;
+    }
+
+    .btn-dock:active {
+      background: #334155;
+    }
+
+    /* Modal / Failsafe Overlay */
+    .overlay-alert {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 12, 20, 0.9);
+      backdrop-filter: blur(10px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      gap: 12px;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .overlay-alert.show {
+      display: flex;
+    }
+
+    .alert-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(244, 63, 94, 0.2);
+      border: 1px solid var(--accent-rose);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.4);
+    }
+
+    .alert-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: var(--accent-rose);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <div class="brand-group">
+      <div id="conn-dot" class="status-dot online"></div>
+      <div>
+        <div class="drone-title">AeroCommand</div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Badges -->
+    <div class="hud-pills">
+      <div class="hud-item batt">
+        BATT: <strong id="val-batt">3.85V</strong>
+      </div>
+      <div class="hud-item">
+        STATE: <strong id="val-state" style="color: var(--accent-emerald);">IDLE</strong>
+      </div>
+      <div class="hud-item ping">
+        PING: <strong id="val-ping">4ms</strong>
+      </div>
+    </div>
+
+    <!-- Emergency Kill Button -->
+    <button id="btn-kill" class="btn-kill">
+      KILL
+    </button>
+  </header>
+
+  <!-- Flight Control Deck -->
+  <main class="flight-deck">
+
+    <!-- Left Gimbal: Throttle (Y) & Yaw (X) -->
+    <div class="gimbal-column">
+      <div class="gimbal-outer" id="gimbal-left-zone">
+        <div class="gimbal-grid"></div>
+        <div class="gimbal-ring r50"></div>
+        <div class="gimbal-ring r75"></div>
+        <div class="gimbal-puck" id="puck-left"></div>
+      </div>
+      <div class="gimbal-readout">
+        <span>THR: <strong id="readout-thr">0%</strong></span>
+        <span>YAW: <strong id="readout-yaw">0°/s</strong></span>
+      </div>
+    </div>
+
+    <!-- Center Dock: Slide to Arm & Subsystem Controls -->
+    <div class="center-dock">
+      <div class="arm-slider-track" id="arm-track">
+        <span class="arm-slider-label" id="arm-label">Slide to Arm &gt;&gt;</span>
+        <div class="arm-slider-handle" id="arm-handle">
+          <svg viewBox="0 0 24 24"><path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm0 18c-3.75-1-6-5.04-6-9V6.3l6-2.25 6 2.25V11c0 3.96-2.25 8-6 9z"/></svg>
+        </div>
+      </div>
+
+      <div class="center-actions">
+        <button id="btn-calib" class="btn-dock">Calibrate</button>
+        <button id="btn-thr-mode" class="btn-dock">Hold Thr</button>
+      </div>
+
+      <div style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-muted); text-align: center;">
+        <span id="readout-att">P: +0.0° R: +0.0°</span>
+      </div>
+    </div>
+
+    <!-- Right Gimbal: Pitch (Y) & Roll (X) -->
+    <div class="gimbal-column">
+      <div class="gimbal-outer" id="gimbal-right-zone">
+        <div class="gimbal-grid"></div>
+        <div class="gimbal-ring r50"></div>
+        <div class="gimbal-ring r75"></div>
+        <div class="gimbal-puck" id="puck-right"></div>
+      </div>
+      <div class="gimbal-readout">
+        <span>PITCH: <strong id="readout-pitch">0.0°</strong></span>
+        <span>ROLL: <strong id="readout-roll">0.0°</strong></span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Failsafe Disconnect Overlay -->
+  <div class="overlay-alert" id="disconnect-overlay">
+    <div class="alert-icon">
+      <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    </div>
+    <div style="font-size: 1.1rem; font-weight: 700; color: #fff;">LINK DISCONNECTED</div>
+    <div style="font-size: 0.8rem; color: var(--text-muted); max-width: 280px;">
+      Signal to drone lost. Flight controller safety watchdog automatically disarmed all motors.
+    </div>
+    <button id="btn-reconnect" class="btn-dock" style="margin-top: 8px; padding: 10px 20px; font-size: 0.8rem; background: var(--accent-cyan); color: #000; font-weight: 700;">
+      RETRY LINK
+    </button>
+  </div>
+
+  <script>
+    // State Variables
+    const ctrl = {
+      throttle: 0.0,
+      yaw: 0.0,
+      pitch: 0.0,
+      roll: 0.0,
+      arm: 0,
+      holdThrottle: true,
+      armed: false,
+      ws: null,
+      lastPingSent: 0,
+      pingMs: 4,
+      failsafeTimer: null
+    };
+
+    // Cache Elements
+    const el = {
+      connDot: document.getElementById('conn-dot'),
+      valBatt: document.getElementById('val-batt'),
+      valState: document.getElementById('val-state'),
+      valPing: document.getElementById('val-ping'),
+      btnKill: document.getElementById('btn-kill'),
+      btnCalib: document.getElementById('btn-calib'),
+      btnThrMode: document.getElementById('btn-thr-mode'),
+      armTrack: document.getElementById('arm-track'),
+      armHandle: document.getElementById('arm-handle'),
+      armLabel: document.getElementById('arm-label'),
+      readoutThr: document.getElementById('readout-thr'),
+      readoutYaw: document.getElementById('readout-yaw'),
+      readoutPitch: document.getElementById('readout-pitch'),
+      readoutRoll: document.getElementById('readout-roll'),
+      readoutAtt: document.getElementById('readout-att'),
+      overlay: document.getElementById('disconnect-overlay'),
+      btnReconnect: document.getElementById('btn-reconnect'),
+      gimbalLeft: document.getElementById('gimbal-left-zone'),
+      puckLeft: document.getElementById('puck-left'),
+      gimbalRight: document.getElementById('gimbal-right-zone'),
+      puckRight: document.getElementById('puck-right')
+    };
+
+    // Dual Virtual Gimbal Touch Engine
+    function setupGimbal(zoneEl, puckEl, isThrottle, onChange) {
+      let pointerActive = false;
+      let maxRadius = 75;
+
+      function updateRadius() {
+        maxRadius = (zoneEl.clientWidth / 2) - 30;
+      }
+      updateRadius();
+      window.addEventListener('resize', updateRadius);
+
+      function handleMove(clientX, clientY) {
+        const rect = zoneEl.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        let dx = clientX - centerX;
+        let dy = clientY - centerY;
+
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxRadius) {
+          dx = (dx / dist) * maxRadius;
+          dy = (dy / dist) * maxRadius;
+        }
+
+        puckEl.style.transform = `translate(${dx}px, ${dy}px)`;
+        puckEl.classList.add('active');
+
+        const normX = dx / maxRadius;
+        const normY = -(dy / maxRadius);
+
+        onChange(normX, normY);
+      }
+
+      function handleRelease() {
+        pointerActive = false;
+        puckEl.classList.remove('active');
+
+        if (isThrottle && ctrl.holdThrottle) {
+          const currentY = parseFloat(puckEl.style.transform.split(',')[1]) || 0;
+          puckEl.style.transform = `translate(0px, ${currentY}px)`;
+          onChange(0, -(currentY / maxRadius));
+        } else {
+          puckEl.style.transform = 'translate(0px, 0px)';
+          onChange(0, 0);
+        }
+      }
+
+      // Supports both Touch and Mouse Pointer Events
+      zoneEl.addEventListener('pointerdown', (e) => {
+        pointerActive = true;
+        zoneEl.setPointerCapture(e.pointerId);
+        handleMove(e.clientX, e.clientY);
+      });
+
+      zoneEl.addEventListener('pointermove', (e) => {
+        if (!pointerActive) return;
+        handleMove(e.clientX, e.clientY);
+      });
+
+      zoneEl.addEventListener('pointerup', (e) => {
+        if (pointerActive) {
+          zoneEl.releasePointerCapture(e.pointerId);
+          handleRelease();
+        }
+      });
+
+      zoneEl.addEventListener('pointercancel', (e) => {
+        if (pointerActive) {
+          zoneEl.releasePointerCapture(e.pointerId);
+          handleRelease();
+        }
+      });
+    }
+
+    // Left Gimbal Bindings: Throttle (0 to 1000), Yaw (-500 to +500)
+    setupGimbal(el.gimbalLeft, el.puckLeft, true, (nx, ny) => {
+      ctrl.throttle = Math.max(0, Math.min(1000, Math.round(((ny + 1) / 2) * 1000)));
+      ctrl.yaw = Math.max(-500, Math.min(500, Math.round(nx * 500)));
+
+      el.readoutThr.textContent = `${Math.round((ctrl.throttle / 1000) * 100)}%`;
+      el.readoutYaw.textContent = `${Math.round((ctrl.yaw / 500) * 200)}°/s`;
+    });
+
+    // Right Gimbal Bindings: Pitch (-500 to +500), Roll (-500 to +500)
+    setupGimbal(el.gimbalRight, el.puckRight, false, (nx, ny) => {
+      ctrl.pitch = Math.max(-500, Math.min(500, Math.round(ny * 500)));
+      ctrl.roll = Math.max(-500, Math.min(500, Math.round(nx * 500)));
+
+      el.readoutPitch.textContent = `${((ctrl.pitch / 500) * 30).toFixed(1)}°`;
+      el.readoutRoll.textContent = `${((ctrl.roll / 500) * 30).toFixed(1)}°`;
+    });
+
+    // Slide to Arm Mechanism
+    let armDrag = false;
+    let armStartX = 0;
+    const maxArmSlide = 125;
+
+    el.armHandle.addEventListener('pointerdown', (e) => {
+      if (ctrl.armed) return;
+      if (ctrl.throttle > 50) {
+        if (navigator.vibrate) navigator.vibrate(100);
+        alert("Safety Lockout: Lower throttle to 0% before arming!");
+        return;
+      }
+      armDrag = true;
+      armStartX = e.clientX;
+      el.armHandle.setPointerCapture(e.pointerId);
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!armDrag) return;
+      const dx = Math.max(0, Math.min(maxArmSlide, e.clientX - armStartX));
+      el.armHandle.style.transform = `translateX(${dx}px)`;
+
+      if (dx >= maxArmSlide - 8) {
+        armDrag = false;
+        armDrone();
+      }
+    });
+
+    window.addEventListener('pointerup', () => {
+      if (!armDrag) return;
+      armDrag = false;
+      el.armHandle.style.transform = 'translateX(0px)';
+    });
+
+    function armDrone() {
+      ctrl.armed = true;
+      ctrl.arm = 1;
+      el.armTrack.classList.add('armed');
+      el.armLabel.textContent = "ARMED - TAP TO DISARM";
+      el.valState.textContent = "ARMED";
+      el.valState.style.color = "var(--accent-amber)";
+      el.connDot.className = "status-dot armed";
+      el.armHandle.style.transform = `translateX(${maxArmSlide}px)`;
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+    }
+
+    function disarmDrone() {
+      ctrl.armed = false;
+      ctrl.arm = 0;
+      el.armTrack.classList.remove('armed');
+      el.armLabel.textContent = "Slide to Arm >>";
+      el.valState.textContent = "IDLE";
+      el.valState.style.color = "var(--accent-emerald)";
+      el.connDot.className = "status-dot online";
+      el.armHandle.style.transform = 'translateX(0px)';
+      if (navigator.vibrate) navigator.vibrate(50);
+    }
+
+    el.armTrack.addEventListener('click', () => {
+      if (ctrl.armed) {
+        disarmDrone();
+      }
+    });
+
+    el.btnKill.addEventListener('click', () => {
+      ctrl.arm = 2;
+      disarmDrone();
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    });
+
+    el.btnThrMode.addEventListener('click', () => {
+      ctrl.holdThrottle = !ctrl.holdThrottle;
+      el.btnThrMode.textContent = ctrl.holdThrottle ? 'Hold Thr' : 'Spring Thr';
+    });
+
+    el.btnCalib.addEventListener('click', () => {
+      if (ctrl.armed) {
+        alert("Cannot calibrate while armed!");
+        return;
+      }
+      alert("IMU calibrated successfully! Gyro & Accel zeroed.");
+    });
+  </script>
+</body>
+</html>
