@@ -1,0 +1,15 @@
+# MkDocs build directory
+site/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+.cache/
+
+# OS specific
+.DS_Store
+Thumbs.db
