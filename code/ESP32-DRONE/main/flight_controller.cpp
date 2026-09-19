@@ -66,8 +66,14 @@ bool FlightController::init() {
 
     // 5. Initialize IMU
     if (!imu_.init()) {
-        ESP_LOGE(TAG, "IMU hardware init failed!");
+#if (IMU_BENCH_TEST_MODE == 1)
+        ESP_LOGW(TAG, "Physical IMU not detected on I2C. Booting in BENCH TEST SIMULATION mode!");
+        imu_.enableSimulation(true);
+        imu_.init();
+#else
+        ESP_LOGE(TAG, "IMU hardware init failed! Check MPU9250 I2C wiring (SDA=D4, SCL=D5) or set IMU_BENCH_TEST_MODE to 1 in config.h.");
         return false;
+#endif
     }
 
     // 6. Perform startup sensor zero-bias calibration

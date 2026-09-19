@@ -83,6 +83,9 @@ extern "C" {
 #define IMU_MAX_CALIB_MOTION                                                   \
   0.15f // Max allowable g deviation during calibration
 
+// Bench testing mode: 0 = require physical MPU sensor, 1 = simulated IMU for bare-board desk/swarm testing
+#define IMU_BENCH_TEST_MODE 0
+
 // =============================================================================
 // 4. ATTITUDE ESTIMATION (COMPLEMENTARY FILTER)
 // =============================================================================

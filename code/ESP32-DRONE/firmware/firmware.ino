@@ -32,6 +32,9 @@ void setup() {
     // Initialize Flight Controller
     if (!g_flight_controller.init()) {
         Serial.println("[ERROR] Flight controller initialization failed! Halting.");
+        Serial.println("  -> Reason: Physical MPU-9250 sensor not detected on I2C (SDA=D4/GPIO5, SCL=D5/GPIO6).");
+        Serial.println("  -> Tip: To test Swarm networking & CLI on bare desk boards without an IMU,");
+        Serial.println("          set #define IMU_BENCH_TEST_MODE 1 in config.h and reflash!");
         g_flight_controller.emergencyStop();
         return;
     }
