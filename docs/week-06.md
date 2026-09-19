@@ -1,32 +1,73 @@
-# Week 6
+# Week 6: The Anatomy of a Hand-Wired Micro Flight Controller
 
-**Goal this week:** Refine the KiCad circuit schematic and wiring layout reference, and follow up on pending component shipments.
+Designing a schematic on a computer screen is clean and theoretical. Everything is a neat orthogonal line, nets connect with a click, and wires never accidentally touch each other. 
 
-## What we did
+Building a physical flight controller by hand on a 25mm × 25mm perfboard slice is an entirely different beast. At this scale, stray capacitance, wire routing paths, and millimeter-long solder bridges can make the difference between a rock-solid hover and a smoky microcontroller.
 
-- Used the shipping downtime to review and refine the KiCad circuit design as an exact wiring blueprint:
-  - **Circuit & Netlist Verification**: Double-checked pinouts for the Seeed Studio XIAO ESP32-S3, MPU9250 I2C lines, and AO3400A MOSFET gate/drain/source connections.
-  - **Manual Wiring Layout Planning**: Mapped out the point-to-point wiring paths and perfboard layout in KiCad to keep motor power lines thick and isolated from sensitive signal traces.
-  - **Protection & Passives Check**: Verified orientation of 1N5819 Schottky flyback diodes and placement of the 470µF bulk capacitor and gate pull-down resistors.
-- Other than KiCad circuit refinements and planning the physical wiring layout, hands-on progress was limited while awaiting delivery of the ordered components.
+With the final courier delivery scheduled for next week, we dedicated Week 6 to turning our KiCad schematic into a meticulous 3D wiring blueprint.
 
-## Problems and blockers
+---
 
-- **Extended Delivery Delays**: Component packages remained in transit with suppliers and couriers, preventing physical soldering, assembly, or live motor spin tests.
-- Practical hardware assembly remained paused pending arrival of the physical components.
+## The Geometry of a SOT-23 on Perfboard
 
-## Decisions
+The most challenging component in our circuit is the **AO3400A MOSFET**. It comes in an ultra-compact surface-mount **SOT-23** package—designed for machine pick-and-place on manufactured PCBs, not for human hands holding a soldering iron.
 
-- **Circuit Design Only (No PCB Manufacturing)**: Confirmed that KiCad is used exclusively for circuit design, schematic capture, and wiring reference. No PCBs will be sent for commercial manufacturing; the circuit will be assembled via manual perfboard / point-to-point soldering directly on the drone frame to eliminate manufacturing lead times and keep the build strictly below the ₹3,000 budget.
-- **Star-Ground Wiring Layout**: Planned physical wire routing so motor ground returns converge strictly at the battery negative solder pad, preventing voltage spikes on the MCU logic ground.
+```
+       SOT-23 Pinout (Top View):
+              +---+---+
+        Gate  | 1   3 |  Drain (To Motor Negative)
+              |       |
+      Source  | 2     |
+              +-------+
+                 |
+         (To Power GND)
+```
 
-## Next week
+Standard perfboard has a 2.54mm (0.1-inch) hole pitch. SOT-23 pins are spaced at a minuscule 0.95mm. If you try to jam a SOT-23 flat onto standard perfboard holes, the legs don't reach the pads, and any excess solder will bridge Gate to Source.
 
-- Take delivery of incoming electronics shipments and inspect components.
-- Begin physical hand-soldering and wiring of the motor driver circuit following the KiCad blueprint.
-- Validate power rails, test 3.3V logic switching with the XIAO ESP32-S3, and verify I2C communication with the IMU.
+To solve this without ordering commercial PCBs:
+1. We mapped out a custom **"dead-bug / bridge" mounting technique**: bending the Drain lead upward to connect directly to the flyback diode cathode, while Source solders flat to a shared solid-copper ground bus wire running along the bottom.
+2. We placed the **100Ω gate resistor** directly across the Gate pin before attaching any flexible wire, acting as a physical bridge and dampening high-frequency reflections before they travel down the signal line.
 
-## Links
+---
 
-- Circuit Architecture & Driver Analysis: [code/ESP32-DRONE/README.md](file:///e:/ResQmesh/code/ESP32-DRONE/README.md#3-electrical--driver-circuit-analysis)
-- Previous Log: [docs/week-05.md](week-05.md)
+## Combating EMI: Twisting Wires Like Network Cables
+
+Brushed coreless motors are essentially tiny mechanical spark generators. As the internal commutator brushes sweep across the armature segments at 50,000 RPM, they create continuous micro-arcing. That arcing broadcasts high-frequency electromagnetic interference (EMI) into the air.
+
+If you run parallel, straight wires from your motors right past your MPU9250 sensor, those wires act as miniature antennas. They radiate RF hash straight into the 3.3V power rails and induce false spikes on the I2C Clock (`SCL`) and Data (`SDA`) lines.
+
+```
+Parallel Motor Wires:  =================  --> Radiates EMI directly into sensor lines!
+Twisted Motor Pairs:   -X-X-X-X-X-X-X-X-  --> Magnetic fields cancel out! Low EMI.
+```
+
+Our layout plan standardized two physical rules:
+- **Tightly Twisted Pairs:** Every motor's positive and negative power leads must be twisted together with at least 4 turns per centimeter before running inward to the central driver board. The opposing currents create equal and opposite magnetic fields that cancel each other out.
+- **Physical Separation:** Motor power lines are routed along the bottom arms of the 3D-printed frame, while the MPU9250 I2C signals run along the top deck, maintaining an air gap between high-current power switching and low-voltage logic.
+
+---
+
+## The Complete Pin Mapping
+
+By the end of the week, our physical wiring harness was fully mapped to the Seeed Studio XIAO ESP32-S3:
+
+| XIAO Pin | GPIO | Function | Connection Details |
+| :--- | :--- | :--- | :--- |
+| **D0** | `GPIO1` | Battery Voltage ADC | 2:1 divider (100kΩ / 100kΩ) sensing 1S LiPo voltage |
+| **D1** | `GPIO2` | Motor 1 PWM (Front-Left) | 20 kHz LEDC PWM output -> 100Ω gate resistor -> AO3400A Gate |
+| **D2** | `GPIO3` | Motor 2 PWM (Front-Right)| 20 kHz LEDC PWM output -> 100Ω gate resistor -> AO3400A Gate |
+| **D3** | `GPIO4` | Motor 3 PWM (Rear-Right) | 20 kHz LEDC PWM output -> 100Ω gate resistor -> AO3400A Gate |
+| **D4** | `GPIO5` | I2C SDA | Fast-Mode 400 kHz data line to MPU9250 IMU |
+| **D5** | `GPIO6` | I2C SCL | Fast-Mode 400 kHz clock line to MPU9250 IMU |
+| **D6** | `GPIO43` | Motor 4 PWM (Rear-Left)  | 20 kHz LEDC PWM output -> 100Ω gate resistor -> AO3400A Gate |
+| **3V3** | — | Regulated 3.3V Out | Dedicated quiet power rail to MPU9250 IMU |
+| **GND** | — | Logic Ground | Star-ground tie point to battery negative terminal |
+
+---
+
+## On Deck
+
+The blueprint is ready, the routing paths are marked, and courier tracking confirmed the components are in the local delivery van for early Monday morning.
+
+Next week, we write and validate our entire 500 Hz flight loop on a PC simulator before flashing the actual hardware.

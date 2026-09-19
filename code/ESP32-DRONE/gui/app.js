@@ -1,6 +1,7 @@
 /**
- * AeroCommand GCS - Web Serial Ground Control Station
- * Real-time 3D attitude visualizer, sensor oscilloscope, and motor dashboard.
+ * AeroCommand GCS - Aerospace Swarm Mission Ground Control Station
+ * Real-time 3D attitude visualizer, sensor oscilloscope, tactical mesh radar,
+ * and decentralized ESP-NOW swarm command deck.
  */
 
 // =============================================================================
@@ -13,8 +14,9 @@ const state = {
   connected: false,
   demoMode: false,
   demoTimer: null,
+  viewMode: 'dual', // 'cockpit', 'radar', or 'dual'
   
-  // Latest Telemetry Frame
+  // Latest Telemetry Frame for Local Drone (Node #1)
   telem: {
     systemState: 'DISCONNECTED',
     roll: 0.0,
@@ -40,13 +42,38 @@ const state = {
   maxSamples: 140,
   sensorTab: 'accel', // 'accel' or 'gyro'
   accelHistory: { x: [], y: [], z: [] },
-  gyroHistory:  { x: [], y: [], z: [] }
+  gyroHistory:  { x: [], y: [], z: [] },
+
+  // Swarm State & Decentralized Peer Table
+  swarm: {
+    nodeId: 1,
+    role: 'follower',
+    peers: new Map() // key: node_id, value: { id, role, state, battMv, battPct, roll, pitch, armed, lastSeen, relX, relY, targetX, targetY }
+  },
+
+  // Tactical Radar Scope State
+  radar: {
+    rangeMeters: 10,
+    sweepAngle: 0.0,
+    sweepSpeed: 0.035, // radians per frame
+    formation: 'v_formation',
+    selectedNodeId: 1,
+    hoveredNodeId: null,
+    mousePos: { x: 0, y: 0, active: false }
+  }
 };
 
 // =============================================================================
 // 2. DOM Elements Cache
 // =============================================================================
 const dom = {
+  // View Mode Switcher
+  btnViewCockpit: document.getElementById('btn-view-cockpit'),
+  btnViewDual: document.getElementById('btn-view-dual'),
+  btnViewRadar: document.getElementById('btn-view-radar'),
+  workspaceContainer: document.getElementById('workspace-container'),
+
+  // Header & Status
   connectBtn: document.getElementById('connect-btn'),
   connectBtnText: document.getElementById('connect-btn-text'),
   demoModeBtn: document.getElementById('demo-mode-btn'),
@@ -56,6 +83,7 @@ const dom = {
   loopFreqLabel: document.getElementById('loop-freq-label'),
   batteryLabel: document.getElementById('battery-label'),
   
+  // HUD
   hudRoll: document.getElementById('hud-roll-val'),
   hudPitch: document.getElementById('hud-pitch-val'),
   hudYawRate: document.getElementById('hud-yawrate-val'),
@@ -77,7 +105,7 @@ const dom = {
   pctM4: document.getElementById('pct-m4'),
   satBadge: document.getElementById('sat-badge'),
   
-  // Sensors
+  // Sensors Oscilloscope
   tabAccel: document.getElementById('tab-accel'),
   tabGyro: document.getElementById('tab-gyro'),
   canvas: document.getElementById('oscilloscope-canvas'),
@@ -85,7 +113,42 @@ const dom = {
   valY: document.getElementById('val-y'),
   valZ: document.getElementById('val-z'),
   
-  // Tools
+  // Swarm Tactical Radar Canvas & HUD
+  radarCanvas: document.getElementById('swarm-radar-canvas'),
+  radarActiveNodes: document.getElementById('radar-active-nodes-num'),
+  radarArmedNodes: document.getElementById('radar-armed-nodes-num'),
+  radarInspectNode: document.getElementById('radar-inspect-node'),
+  footerPeerCount: document.getElementById('footer-peer-count'),
+  footerLocalRole: document.getElementById('footer-local-role'),
+  footerMeshHealth: document.getElementById('footer-mesh-health'),
+
+  // Swarm Controls & Matrix
+  swarmPeersBadge: document.getElementById('swarm-peers-badge'),
+  swarmNodeIdInput: document.getElementById('swarm-node-id-input'),
+  btnSetNodeId: document.getElementById('btn-set-node-id'),
+  swarmRoleSelect: document.getElementById('swarm-role-select'),
+  btnSetRole: document.getElementById('btn-set-role'),
+  swarmTargetSelect: document.getElementById('swarm-target-select'),
+  btnSwarmArm: document.getElementById('btn-swarm-arm'),
+  btnSwarmDisarm: document.getElementById('btn-swarm-disarm'),
+  btnSwarmCalib: document.getElementById('btn-swarm-calib'),
+  btnSwarmTakeoff: document.getElementById('btn-swarm-takeoff'),
+  btnSwarmKill: document.getElementById('btn-swarm-kill'),
+  swarmFleetGrid: document.getElementById('swarm-fleet-grid'),
+  swarmEmptyState: document.getElementById('swarm-empty-state'),
+
+  // Inspector Box
+  inspectorBox: document.getElementById('node-inspector-box'),
+  inspTitle: document.getElementById('insp-node-title'),
+  inspCloseBtn: document.getElementById('insp-close-btn'),
+  inspRole: document.getElementById('insp-role'),
+  inspState: document.getElementById('insp-state'),
+  inspBatt: document.getElementById('insp-batt'),
+  inspAtt: document.getElementById('insp-att'),
+  inspDist: document.getElementById('insp-dist'),
+  inspBearing: document.getElementById('insp-bearing'),
+
+  // Diagnostics Tools
   btnCalibrate: document.getElementById('btn-calibrate'),
   btnArmToggle: document.getElementById('btn-arm-toggle'),
   btnDisarm: document.getElementById('btn-disarm'),
@@ -118,6 +181,7 @@ let camPhi = 0.5, camTheta = 0.0, camRadius = 7.0;
 
 function initThreeJS() {
   const container = document.getElementById('three-container');
+  if (!container) return;
   const width = container.clientWidth || 600;
   const height = container.clientHeight || 380;
 
@@ -151,7 +215,7 @@ function initThreeJS() {
   // Build Procedural High-Fidelity Drone Model
   droneGroup = new THREE.Group();
 
-  // Central Fuselage / Electronics Enclosure
+  // Central Fuselage
   const bodyGeo = new THREE.BoxGeometry(0.85, 0.16, 0.85);
   const carbonMat = new THREE.MeshStandardMaterial({ 
     color: 0x0f172a, 
@@ -180,7 +244,7 @@ function initThreeJS() {
   arrowMesh.position.set(0, 0.14, -0.68);
   droneGroup.add(arrowMesh);
 
-  // Quad-X Carbon Arms & Motors (X Configuration)
+  // Quad-X Carbon Arms & Motors
   const armLen = 1.45;
   const armConfigs = [
     { name: 'M1_FL', angle: -Math.PI * 0.75, color: 0x38bdf8, isFront: true },  // Front-Left (CW)
@@ -202,7 +266,7 @@ function initThreeJS() {
     );
     droneGroup.add(armMesh);
 
-    // Motor Mount / Bell (Brushed Aluminum)
+    // Motor Mount
     const motorGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.22, 16);
     const motorMat = new THREE.MeshStandardMaterial({ 
       color: 0x94a3b8, 
@@ -253,19 +317,23 @@ function initThreeJS() {
     isUserInteracting = false;
   });
 
-  // Responsive Resize
-  window.addEventListener('resize', () => {
+  // Resize Handler
+  const handleThreeResize = () => {
+    if (!container || !renderer || !camera) return;
     const w = container.clientWidth;
     const h = container.clientHeight;
+    if (w === 0 || h === 0) return;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
-  });
+  };
 
+  window.addEventListener('resize', handleThreeResize);
   animateThreeJS();
 }
 
 function updateCameraPosition() {
+  if (!camera) return;
   camera.position.x = camRadius * Math.sin(camPhi) * Math.sin(camTheta);
   camera.position.y = camRadius * Math.cos(camPhi);
   camera.position.z = camRadius * Math.sin(camPhi) * Math.cos(camTheta);
@@ -282,8 +350,8 @@ function resetCamera() {
 function animateThreeJS() {
   requestAnimationFrame(animateThreeJS);
 
-  if (droneGroup) {
-    // Smooth, jitter-free Euler interpolation towards target orientation
+  if (droneGroup && renderer && scene && camera) {
+    // Smooth Euler interpolation towards target orientation
     droneGroup.rotation.x += (targetRotation.x - droneGroup.rotation.x) * 0.18;
     droneGroup.rotation.z += (targetRotation.z - droneGroup.rotation.z) * 0.18;
     droneGroup.rotation.y += (targetRotation.y - droneGroup.rotation.y) * 0.18;
@@ -295,9 +363,9 @@ function animateThreeJS() {
         child.rotation.y += spinSpeed;
       }
     });
-  }
 
-  renderer.render(scene, camera);
+    renderer.render(scene, camera);
+  }
 }
 
 // =============================================================================
@@ -305,9 +373,11 @@ function animateThreeJS() {
 // =============================================================================
 function initOscilloscope() {
   const canvas = dom.canvas;
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
   function resizeCanvas() {
+    if (!canvas.parentElement) return;
     canvas.width = canvas.parentElement.clientWidth;
     canvas.height = canvas.parentElement.clientHeight;
   }
@@ -363,7 +433,510 @@ function initOscilloscope() {
 }
 
 // =============================================================================
-// 5. Telemetry Processing & UI Updates
+// 5. Tactical Swarm Radar Scope & Mesh Geometry (Canvas 2D)
+// =============================================================================
+function initSwarmRadar() {
+  const canvas = dom.radarCanvas;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  state.radar.canvas = canvas;
+  state.radar.ctx = ctx;
+
+  function resizeRadar() {
+    const parent = canvas.parentElement;
+    if (!parent) return;
+    const rect = parent.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+  }
+
+  resizeRadar();
+  window.addEventListener('resize', resizeRadar);
+
+  // Mouse move and click handling on radar blips
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    state.radar.mousePos = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      active: true
+    };
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    state.radar.mousePos.active = false;
+    state.radar.hoveredNodeId = null;
+  });
+
+  canvas.addEventListener('click', () => {
+    if (state.radar.hoveredNodeId !== null) {
+      selectInspectedNode(state.radar.hoveredNodeId);
+    }
+  });
+
+  // Range Selector Buttons
+  document.querySelectorAll('.seg-btn-radar').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.seg-btn-radar').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      state.radar.rangeMeters = parseFloat(e.target.getAttribute('data-range'));
+      logTerminal(`Radar scale switched to ${state.radar.rangeMeters}m range.`, 'info');
+    });
+  });
+
+  // Formation Selector Pills
+  document.querySelectorAll('.formation-pill').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      document.querySelectorAll('.formation-pill').forEach(p => p.classList.remove('active'));
+      e.target.classList.add('active');
+      const form = e.target.getAttribute('data-formation');
+      state.radar.formation = form;
+      updateFormationTargets();
+      logTerminal(`Swarm Formation set to: ${e.target.textContent.toUpperCase()}.`, 'info');
+    });
+  });
+
+  // Radar Animation Loop
+  function drawRadar() {
+    requestAnimationFrame(drawRadar);
+
+    const w = canvas.width;
+    const h = canvas.height;
+    if (w === 0 || h === 0) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const centerX = w / 2;
+    const centerY = h / 2;
+    const maxRadius = Math.min(centerX, centerY) - (35 * dpr);
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Increment phosphor sweep angle
+    state.radar.sweepAngle += state.radar.sweepSpeed;
+    if (state.radar.sweepAngle >= Math.PI * 2) {
+      state.radar.sweepAngle -= Math.PI * 2;
+    }
+
+    // 1. Outer Compass Ring & Azimuth Heading Ticks
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.lineWidth = 2 * dpr;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, maxRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Azimuth markings every 30 degrees
+    ctx.font = `${9 * dpr}px 'JetBrains Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+
+    const cardinals = { 0: '000° N', 90: '090° E', 180: '180° S', 270: '270° W' };
+
+    for (let deg = 0; deg < 360; deg += 30) {
+      const rad = (deg - 90) * (Math.PI / 180);
+      const isCard = (deg % 90 === 0);
+      const tickLen = isCard ? (12 * dpr) : (6 * dpr);
+      
+      const x1 = centerX + Math.cos(rad) * maxRadius;
+      const y1 = centerY + Math.sin(rad) * maxRadius;
+      const x2 = centerX + Math.cos(rad) * (maxRadius - tickLen);
+      const y2 = centerY + Math.sin(rad) * (maxRadius - tickLen);
+
+      ctx.strokeStyle = isCard ? 'rgba(56, 189, 248, 0.6)' : 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = (isCard ? 1.5 : 1) * dpr;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      // Cardinal / Degree Labels
+      const labelDist = maxRadius + (16 * dpr);
+      const lx = centerX + Math.cos(rad) * labelDist;
+      const ly = centerY + Math.sin(rad) * labelDist;
+      ctx.fillStyle = isCard ? '#38bdf8' : 'rgba(100, 116, 139, 0.8)';
+      ctx.fillText(cardinals[deg] || `${String(deg).padStart(3, '0')}°`, lx, ly);
+    }
+
+    // 2. Concentric Distance Range Rings
+    const ringSteps = [0.25, 0.5, 0.75, 1.0];
+    ringSteps.forEach(step => {
+      const r = maxRadius * step;
+      ctx.strokeStyle = (step === 1.0) ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1 * dpr;
+      ctx.setLineDash([4 * dpr, 4 * dpr]);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Range distance labels
+      const distM = (state.radar.rangeMeters * step).toFixed(1);
+      ctx.fillStyle = 'rgba(100, 116, 139, 0.85)';
+      ctx.font = `${8 * dpr}px 'JetBrains Mono', monospace`;
+      ctx.textAlign = 'left';
+      ctx.fillText(`${distM}m`, centerX + 6 * dpr, centerY - r + (9 * dpr));
+    });
+
+    // 3. Crosshair Axes
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(centerX - maxRadius, centerY);
+    ctx.lineTo(centerX + maxRadius, centerY);
+    ctx.moveTo(centerX, centerY - maxRadius);
+    ctx.lineTo(centerX, centerY + maxRadius);
+    ctx.stroke();
+
+    // 4. Rotating Phosphor Sweep Cone
+    const sweepAngle = state.radar.sweepAngle;
+    const trailAngle = Math.PI * 0.35; // sector size
+    const sweepGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius);
+    sweepGrad.addColorStop(0, 'rgba(16, 185, 129, 0.16)');
+    sweepGrad.addColorStop(1, 'rgba(16, 185, 129, 0.01)');
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.arc(centerX, centerY, maxRadius, sweepAngle - trailAngle, sweepAngle, false);
+    ctx.closePath();
+    ctx.fillStyle = sweepGrad;
+    ctx.fill();
+
+    // Bright Leading Sweep Ray
+    const rayX = centerX + Math.cos(sweepAngle) * maxRadius;
+    const rayY = centerY + Math.sin(sweepAngle) * maxRadius;
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.65)';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.shadowColor = '#10b981';
+    ctx.shadowBlur = 8 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(rayX, rayY);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+    // Helper: Map meter coordinates (x, y) to radar canvas pixel coordinates
+    const scaleFactor = maxRadius / state.radar.rangeMeters;
+    const toCanvasCoords = (mX, mY) => {
+      // mX: positive right, mY: positive forward (North)
+      return {
+        x: centerX + (mX * scaleFactor),
+        y: centerY - (mY * scaleFactor)
+      };
+    };
+
+    // 5. Formation Geometry Overlay Lines
+    if (state.radar.formation !== 'free') {
+      drawFormationOverlay(ctx, centerX, centerY, scaleFactor, dpr);
+    }
+
+    // 6. Decentralized Swarm Mesh Connection Links
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+    ctx.lineWidth = 1 * dpr;
+    ctx.setLineDash([3 * dpr, 3 * dpr]);
+
+    const allNodes = [
+      { id: state.swarm.nodeId, x: 0, y: 0, role: state.swarm.role, state: state.telem.systemState, armed: state.telem.armed, battPct: state.telem.battPct, roll: state.telem.roll, pitch: state.telem.pitch }
+    ];
+
+    state.swarm.peers.forEach(peer => {
+      allNodes.push({
+        id: peer.id,
+        x: peer.relX || 0,
+        y: peer.relY || 0,
+        role: peer.role,
+        state: peer.state,
+        armed: peer.armed,
+        battPct: peer.battPct,
+        roll: peer.roll,
+        pitch: peer.pitch
+      });
+    });
+
+    for (let i = 0; i < allNodes.length; i++) {
+      for (let j = i + 1; j < allNodes.length; j++) {
+        const ptA = toCanvasCoords(allNodes[i].x, allNodes[i].y);
+        const ptB = toCanvasCoords(allNodes[j].x, allNodes[j].y);
+        ctx.beginPath();
+        ctx.moveTo(ptA.x, ptA.y);
+        ctx.lineTo(ptB.x, ptB.y);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+
+    // 7. Render Central Local Drone (Node #1)
+    const localPt = toCanvasCoords(0, 0);
+    drawDroneBlip(ctx, localPt.x, localPt.y, state.swarm.nodeId, state.swarm.role, state.telem.systemState, state.telem.armed, state.telem.battPct, state.telem.roll, state.telem.pitch, dpr, true);
+
+    // 8. Render Peer Drone Blips
+    let hovered = null;
+    const mouseX = state.radar.mousePos.x * dpr;
+    const mouseY = state.radar.mousePos.y * dpr;
+
+    state.swarm.peers.forEach(peer => {
+      const pt = toCanvasCoords(peer.relX || 0, peer.relY || 0);
+      
+      // Check mouse hover hit
+      const distToMouse = Math.hypot(pt.x - mouseX, pt.y - mouseY);
+      if (state.radar.mousePos.active && distToMouse < 22 * dpr) {
+        hovered = peer.id;
+      }
+
+      drawDroneBlip(ctx, pt.x, pt.y, peer.id, peer.role, peer.state, peer.armed, peer.battPct, peer.roll, peer.pitch, dpr, false);
+    });
+
+    // Check hover hit on local drone
+    if (state.radar.mousePos.active && Math.hypot(localPt.x - mouseX, localPt.y - mouseY) < 22 * dpr) {
+      hovered = state.swarm.nodeId;
+    }
+
+    state.radar.hoveredNodeId = hovered;
+    if (hovered !== null) {
+      canvas.style.cursor = 'pointer';
+    } else {
+      canvas.style.cursor = 'crosshair';
+    }
+  }
+
+  drawRadar();
+}
+
+function drawDroneBlip(ctx, x, y, id, role, sysState, armed, battPct, roll, pitch, dpr, isLocal) {
+  const isSelected = (state.radar.selectedNodeId === id);
+  const isHovered = (state.radar.hoveredNodeId === id);
+
+  // Color mapping
+  let color = '#38bdf8'; // cyan default
+  if (armed || sysState === 'FLIGHT' || sysState === 'ARMED') color = '#10b981'; // emerald
+  if (sysState === 'FAILSAFE' || sysState === 'ERROR') color = '#f43f5e'; // rose
+  if (role === 'LEADER' || role === 'LEAD') color = '#f59e0b'; // amber leader
+
+  ctx.save();
+
+  // Pulse halo
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+
+  if (isSelected) {
+    // Selection brackets
+    ctx.lineWidth = 1.5 * dpr;
+    const bSize = 14 * dpr;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.beginPath();
+    // Top-left
+    ctx.moveTo(x - bSize, y - bSize + 5 * dpr);
+    ctx.lineTo(x - bSize, y - bSize);
+    ctx.lineTo(x - bSize + 5 * dpr, y - bSize);
+    // Top-right
+    ctx.moveTo(x + bSize - 5 * dpr, y - bSize);
+    ctx.lineTo(x + bSize, y - bSize);
+    ctx.lineTo(x + bSize, y - bSize + 5 * dpr);
+    // Bottom-left
+    ctx.moveTo(x - bSize, y + bSize - 5 * dpr);
+    ctx.lineTo(x - bSize, y + bSize);
+    ctx.lineTo(x - bSize + 5 * dpr, y + bSize);
+    // Bottom-right
+    ctx.moveTo(x + bSize - 5 * dpr, y + bSize);
+    ctx.lineTo(x + bSize, y + bSize);
+    ctx.lineTo(x + bSize, y + bSize - 5 * dpr);
+    ctx.stroke();
+  }
+
+  // Blip Beacon
+  ctx.beginPath();
+  ctx.arc(x, y, (isHovered ? 6 : 4.5) * dpr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8 * dpr;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Concentric ring around node
+  ctx.lineWidth = 1 * dpr;
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, 9 * dpr, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Label tag
+  ctx.font = `600 ${8.5 * dpr}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = '#f8fafc';
+  ctx.textAlign = 'left';
+  const tag = `NODE #${id} [${role.toUpperCase().slice(0, 4)}]`;
+  ctx.fillText(tag, x + (12 * dpr), y - (4 * dpr));
+
+  ctx.font = `${7.5 * dpr}px 'JetBrains Mono', monospace`;
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.9)';
+  ctx.fillText(`${battPct}% // ${armed ? 'ARMED' : 'DISARMED'}`, x + (12 * dpr), y + (7 * dpr));
+
+  ctx.restore();
+}
+
+function drawFormationOverlay(ctx, centerX, centerY, scaleFactor, dpr) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+  ctx.lineWidth = 1.2 * dpr;
+  ctx.setLineDash([4 * dpr, 4 * dpr]);
+
+  const form = state.radar.formation;
+  if (form === 'v_formation') {
+    // V-shape lines from leader (0, 0)
+    const leftWing = { x: centerX - (3.0 * scaleFactor), y: centerY + (3.0 * scaleFactor) };
+    const rightWing = { x: centerX + (3.0 * scaleFactor), y: centerY + (3.0 * scaleFactor) };
+    
+    ctx.beginPath();
+    ctx.moveTo(leftWing.x, leftWing.y);
+    ctx.lineTo(centerX, centerY);
+    ctx.lineTo(rightWing.x, rightWing.y);
+    ctx.stroke();
+  } else if (form === 'diamond') {
+    const top = { x: centerX, y: centerY - (3.0 * scaleFactor) };
+    const bottom = { x: centerX, y: centerY + (3.0 * scaleFactor) };
+    const left = { x: centerX - (3.0 * scaleFactor), y: centerY };
+    const right = { x: centerX + (3.0 * scaleFactor), y: centerY };
+
+    ctx.beginPath();
+    ctx.moveTo(top.x, top.y);
+    ctx.lineTo(right.x, right.y);
+    ctx.lineTo(bottom.x, bottom.y);
+    ctx.lineTo(left.x, left.y);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (form === 'line') {
+    ctx.beginPath();
+    ctx.moveTo(centerX - (4.5 * scaleFactor), centerY);
+    ctx.lineTo(centerX + (4.5 * scaleFactor), centerY);
+    ctx.stroke();
+  } else if (form === 'circle') {
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 3.5 * scaleFactor, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function updateFormationTargets() {
+  const form = state.radar.formation;
+  const peerList = Array.from(state.swarm.peers.values());
+
+  if (form === 'v_formation') {
+    if (peerList[0]) { peerList[0].targetX = -2.8; peerList[0].targetY = -2.4; }
+    if (peerList[1]) { peerList[1].targetX = 2.8;  peerList[1].targetY = -2.4; }
+    if (peerList[2]) { peerList[2].targetX = 0.0;  peerList[2].targetY = -4.6; }
+  } else if (form === 'diamond') {
+    if (peerList[0]) { peerList[0].targetX = -2.8; peerList[0].targetY = 0.0; }
+    if (peerList[1]) { peerList[1].targetX = 2.8;  peerList[1].targetY = 0.0; }
+    if (peerList[2]) { peerList[2].targetX = 0.0;  peerList[2].targetY = -3.2; }
+  } else if (form === 'line') {
+    if (peerList[0]) { peerList[0].targetX = -3.2; peerList[0].targetY = 0.0; }
+    if (peerList[1]) { peerList[1].targetX = 3.2;  peerList[1].targetY = 0.0; }
+    if (peerList[2]) { peerList[2].targetX = 6.4;  peerList[2].targetY = 0.0; }
+  } else if (form === 'circle') {
+    const r = 3.5;
+    const n = peerList.length + 1;
+    peerList.forEach((p, idx) => {
+      const ang = ((idx + 1) / n) * Math.PI * 2 - Math.PI / 2;
+      p.targetX = Math.cos(ang) * r;
+      p.targetY = Math.sin(ang) * r;
+    });
+  }
+}
+
+function selectInspectedNode(nodeId) {
+  state.radar.selectedNodeId = nodeId;
+  if (dom.inspectorBox) dom.inspectorBox.style.display = 'block';
+
+  let nodeInfo = null;
+  if (nodeId === state.swarm.nodeId) {
+    nodeInfo = {
+      id: state.swarm.nodeId,
+      role: state.swarm.role,
+      state: state.telem.systemState,
+      battV: state.telem.battV.toFixed(2),
+      battPct: state.telem.battPct,
+      roll: state.telem.roll,
+      pitch: state.telem.pitch,
+      dist: '0.0 m (Local)',
+      bearing: '000° REF'
+    };
+    if (dom.radarInspectNode) {
+      dom.radarInspectNode.textContent = `CENTER: NODE #${nodeId} (LOCAL FC)`;
+    }
+  } else {
+    const peer = state.swarm.peers.get(nodeId);
+    if (peer) {
+      const dist = Math.hypot(peer.relX || 0, peer.relY || 0).toFixed(1);
+      let angle = (Math.atan2(peer.relX || 0, peer.relY || 0) * 180 / Math.PI);
+      if (angle < 0) angle += 360;
+      nodeInfo = {
+        id: peer.id,
+        role: peer.role,
+        state: peer.state,
+        battV: (peer.battMv / 1000).toFixed(2),
+        battPct: peer.battPct,
+        roll: peer.roll,
+        pitch: peer.pitch,
+        dist: `${dist} m`,
+        bearing: `${Math.round(angle).toString().padStart(3, '0')}°`
+      };
+      if (dom.radarInspectNode) {
+        dom.radarInspectNode.textContent = `TARGET: NODE #${nodeId} // ${dist}m @ ${Math.round(angle)}°`;
+      }
+    }
+  }
+
+  if (nodeInfo) {
+    dom.inspTitle.textContent = `Node #${nodeInfo.id} (${nodeInfo.role.toUpperCase()})`;
+    dom.inspRole.textContent = nodeInfo.role.toUpperCase();
+    dom.inspState.textContent = nodeInfo.state;
+    dom.inspBatt.textContent = `${nodeInfo.battV}V (${nodeInfo.battPct}%)`;
+    dom.inspAtt.textContent = `R: ${nodeInfo.roll >= 0 ? '+' : ''}${nodeInfo.roll.toFixed(1)}° P: ${nodeInfo.pitch >= 0 ? '+' : ''}${nodeInfo.pitch.toFixed(1)}°`;
+    dom.inspDist.textContent = nodeInfo.dist;
+    dom.inspBearing.textContent = nodeInfo.bearing;
+  }
+}
+
+// =============================================================================
+// 6. View Mode Switcher
+// =============================================================================
+function initViewSwitcher() {
+  const switchView = (mode) => {
+    state.viewMode = mode;
+    document.body.className = `view-${mode}`;
+
+    [dom.btnViewCockpit, dom.btnViewDual, dom.btnViewRadar].forEach(btn => {
+      if (!btn) return;
+      if (btn.getAttribute('data-view') === mode) btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
+
+    // Force redraw on canvases and Three.js
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 150);
+
+    logTerminal(`View Mode switched to: ${mode.toUpperCase()} MISSION DISPLAY.`, 'info');
+  };
+
+  if (dom.btnViewCockpit) dom.btnViewCockpit.addEventListener('click', () => switchView('cockpit'));
+  if (dom.btnViewDual)    dom.btnViewDual.addEventListener('click', () => switchView('dual'));
+  if (dom.btnViewRadar)   dom.btnViewRadar.addEventListener('click', () => switchView('radar'));
+
+  if (dom.inspCloseBtn) {
+    dom.inspCloseBtn.addEventListener('click', () => {
+      if (dom.inspectorBox) dom.inspectorBox.style.display = 'none';
+      state.radar.selectedNodeId = null;
+      if (dom.radarInspectNode) dom.radarInspectNode.textContent = 'CENTER: NODE #1 (LOCAL)';
+    });
+  }
+}
+
+// =============================================================================
+// 7. Telemetry Processing & UI Updates
 // =============================================================================
 function updateTelemetryUI() {
   const t = state.telem;
@@ -390,21 +963,21 @@ function updateTelemetryUI() {
 
   // 2. HUD & 3D Drone Orientation
   targetRotation.x = (t.pitch * Math.PI) / 180;
-  targetRotation.z = -(t.roll * Math.PI) / 180; // Right wing down is positive roll
+  targetRotation.z = -(t.roll * Math.PI) / 180;
   targetRotation.y = 0;
 
   dom.hudRoll.textContent = `${t.roll >= 0 ? '+' : ''}${t.roll.toFixed(2)}°`;
   dom.hudPitch.textContent = `${t.pitch >= 0 ? '+' : ''}${t.pitch.toFixed(2)}°`;
   dom.hudYawRate.textContent = `${t.yawRate >= 0 ? '+' : ''}${t.yawRate.toFixed(2)}°/s`;
 
-  // 3. Quad-X Motor Gauges (Radius 23 -> Circumference 144.51)
+  // 3. Quad-X Motor Gauges
   const circumference = 144.51;
   const updateMotor = (gauge, dutyEl, pctEl, val) => {
+    if (!gauge || !dutyEl || !pctEl) return;
     const clamped = Math.min(1023, Math.max(0, val));
     const offset = circumference * (1 - clamped / 1023);
     gauge.style.strokeDashoffset = offset;
 
-    // Heat color on high duty
     if (clamped > 950) gauge.style.stroke = '#f43f5e';
     else if (clamped > 750) gauge.style.stroke = '#f59e0b';
     else gauge.style.stroke = '#38bdf8';
@@ -453,8 +1026,59 @@ function updateTelemetryUI() {
   }
 }
 
-// Parse $TELEM packet: $TELEM,state,roll,pitch,yaw_rate,ax,ay,az,gx,gy,gz,m1,m2,m3,m4,batt_v,batt_pct,loop_hz,armed
+// Parse Telemetry packets ($TELEM, $SWARM, $PEER)
 function parseTelemetryLine(line) {
+  if (line.startsWith('$SWARM,')) {
+    const p = line.trim().split(',');
+    if (p.length >= 4) {
+      state.swarm.nodeId = parseInt(p[1], 10);
+      const roleCode = parseInt(p[2], 10);
+      state.swarm.role = (roleCode === 1) ? 'leader' : (roleCode === 2 ? 'follower' : 'standalone');
+      if (dom.swarmNodeIdInput && document.activeElement !== dom.swarmNodeIdInput) {
+        dom.swarmNodeIdInput.value = state.swarm.nodeId;
+      }
+      if (dom.swarmRoleSelect && document.activeElement !== dom.swarmRoleSelect) {
+        dom.swarmRoleSelect.value = state.swarm.role;
+      }
+      if (dom.footerLocalRole) {
+        dom.footerLocalRole.textContent = state.swarm.role.toUpperCase();
+      }
+    }
+    return true;
+  }
+
+  if (line.startsWith('$PEER,')) {
+    const p = line.trim().split(',');
+    if (p.length >= 9) {
+      const peerId = parseInt(p[1], 10);
+      const roleNum = parseInt(p[2], 10);
+      const peerRole = (roleNum === 1) ? 'LEAD' : (roleNum === 2 ? 'FOLL' : 'NODE');
+      const stateNum = parseInt(p[3], 10);
+      const battMv = parseInt(p[4], 10);
+      const battPct = parseInt(p[5], 10);
+      const roll = parseFloat(p[6]);
+      const pitch = parseFloat(p[7]);
+      const armed = (p[8] === '1');
+
+      let peer = state.swarm.peers.get(peerId);
+      if (!peer) {
+        peer = { id: peerId, relX: 0, relY: 0, targetX: 0, targetY: 0 };
+        state.swarm.peers.set(peerId, peer);
+      }
+      peer.role = peerRole;
+      peer.state = stateNum === 4 ? 'FLIGHT' : (stateNum === 3 ? 'ARMED' : 'DISARMED');
+      peer.battMv = battMv;
+      peer.battPct = battPct;
+      peer.roll = roll;
+      peer.pitch = pitch;
+      peer.armed = armed;
+      peer.lastSeen = Date.now();
+
+      renderSwarmFleet();
+    }
+    return true;
+  }
+
   if (!line.startsWith('$TELEM,')) return false;
 
   const parts = line.trim().split(',');
@@ -483,8 +1107,91 @@ function parseTelemetryLine(line) {
   return true;
 }
 
+function renderSwarmFleet() {
+  if (!dom.swarmFleetGrid) return;
+  const now = Date.now();
+
+  // Purge stale peers > 4.5 seconds
+  for (const [id, peer] of state.swarm.peers.entries()) {
+    if (now - peer.lastSeen > 4500) {
+      state.swarm.peers.delete(id);
+      const oldCard = document.getElementById(`swarm-peer-${id}`);
+      if (oldCard) oldCard.remove();
+    }
+  }
+
+  const count = state.swarm.peers.size;
+  if (dom.swarmPeersBadge) {
+    dom.swarmPeersBadge.textContent = `${count} PEER${count === 1 ? '' : 'S'} DETECTED`;
+    dom.swarmPeersBadge.style.color = count > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)';
+    dom.swarmPeersBadge.style.background = count > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)';
+  }
+
+  // Airspace Header Counters
+  let armedCount = state.telem.armed ? 1 : 0;
+  state.swarm.peers.forEach(p => { if (p.armed) armedCount++; });
+
+  if (dom.radarActiveNodes) dom.radarActiveNodes.textContent = (count + 1);
+  if (dom.radarArmedNodes)  dom.radarArmedNodes.textContent = armedCount;
+  if (dom.footerPeerCount)  dom.footerPeerCount.textContent = `${count} Neighbor Nodes`;
+
+  const bentoPeerStat = document.getElementById('bento-peer-stat');
+  if (bentoPeerStat) {
+    bentoPeerStat.textContent = `${count} Peer${count === 1 ? '' : 's'} Active`;
+    bentoPeerStat.style.color = count > 0 ? 'var(--accent-emerald)' : '#a78bfa';
+  }
+
+  if (count === 0) {
+    if (dom.swarmEmptyState) dom.swarmEmptyState.style.display = 'flex';
+    return;
+  }
+
+  if (dom.swarmEmptyState) dom.swarmEmptyState.style.display = 'none';
+
+  state.swarm.peers.forEach(peer => {
+    let card = document.getElementById(`swarm-peer-${peer.id}`);
+    if (!card) {
+      card = document.createElement('div');
+      card.id = `swarm-peer-${peer.id}`;
+      dom.swarmFleetGrid.appendChild(card);
+    }
+
+    const isArmed = peer.armed;
+    const isFlight = (peer.state === 'FLIGHT');
+    card.className = `swarm-peer-card ${peer.role.toLowerCase()} ${isArmed ? 'armed' : ''}`;
+    const battV = (peer.battMv / 1000).toFixed(2);
+
+    card.innerHTML = `
+      <div class="swarm-peer-header">
+        <span class="swarm-peer-id">
+          <span class="swarm-peer-dot" style="background: ${isArmed ? 'var(--accent-emerald)' : (isFlight ? 'var(--accent-cyan)' : 'var(--accent-rose)')};"></span>
+          Node #${peer.id}
+        </span>
+        <span class="swarm-peer-badge ${peer.role.toLowerCase()}">${peer.role}</span>
+      </div>
+      <div class="swarm-peer-stat-row">
+        <span>State</span>
+        <span class="swarm-peer-stat-val" style="color: ${isArmed ? 'var(--accent-emerald)' : 'var(--text-muted)'};">${peer.state}</span>
+      </div>
+      <div class="swarm-peer-stat-row">
+        <span>Battery</span>
+        <span class="swarm-peer-stat-val">${battV}V (${peer.battPct}%)</span>
+      </div>
+      <div class="swarm-batt-bar-bg">
+        <div class="swarm-batt-bar-fg" style="width: ${peer.battPct}%; background: ${peer.battPct > 25 ? 'var(--accent-cyan)' : 'var(--accent-rose)'};"></div>
+      </div>
+      <div class="swarm-peer-stat-row" style="margin-top: 3px;">
+        <span>R: ${peer.roll >= 0 ? '+' : ''}${peer.roll.toFixed(1)}°</span>
+        <span>P: ${peer.pitch >= 0 ? '+' : ''}${peer.pitch.toFixed(1)}°</span>
+      </div>
+    `;
+
+    card.onclick = () => selectInspectedNode(peer.id);
+  });
+}
+
 // =============================================================================
-// 6. Web Serial API Driver
+// 8. Web Serial API Driver
 // =============================================================================
 async function connectSerial() {
   if (!('serial' in navigator)) {
@@ -504,27 +1211,20 @@ async function connectSerial() {
 
     logTerminal('Connected to Seeed Studio XIAO ESP32-S3 at 115200 baud.', 'info');
 
-    // Turn off Demo mode if active
     if (state.demoMode) toggleDemoMode();
-
-    // Start reading stream
     readSerialLoop();
 
-    // Send command to enable 20 Hz streaming
     setTimeout(() => {
       sendSerialCommand('stream on');
     }, 350);
 
   } catch (err) {
-    logTerminal(`Connection error: ${err.message}`, 'error');
+    logTerminal(`Connection failed: ${err.message}`, 'error');
   }
 }
 
 async function disconnectSerial() {
   try {
-    if (state.connected) {
-      await sendSerialCommand('stream off');
-    }
     if (state.reader) {
       await state.reader.cancel();
       state.reader = null;
@@ -534,15 +1234,15 @@ async function disconnectSerial() {
       state.port = null;
     }
   } catch (err) {
-    console.error(err);
+    console.warn('Error during disconnect:', err);
   } finally {
     state.connected = false;
     dom.connectBtnText.textContent = 'Connect Drone';
-    dom.connectBtn.classList.remove('btn-subtle');
     dom.connectBtn.classList.add('btn-primary');
+    dom.connectBtn.classList.remove('btn-subtle');
     dom.stateLabel.textContent = 'DISCONNECTED';
     dom.statusDot.className = 'pulse-dot';
-    logTerminal('Serial Port disconnected.', 'warn');
+    logTerminal('Disconnected from drone.', 'warn');
   }
 }
 
@@ -557,16 +1257,16 @@ async function readSerialLoop() {
     while (state.connected) {
       const { value, done } = await state.reader.read();
       if (done) break;
+
       if (value) {
         lineBuffer += value;
         const lines = lineBuffer.split('\n');
-        lineBuffer = lines.pop(); // Retain incomplete chunk
+        lineBuffer = lines.pop(); // Keep last partial line
 
-        for (const line of lines) {
-          const clean = line.trim();
+        for (const raw of lines) {
+          const clean = raw.trim();
           if (!clean) continue;
 
-          // Check if line is telemetry packet
           const isTelem = parseTelemetryLine(clean);
           if (!isTelem) {
             logTerminal(clean);
@@ -597,26 +1297,26 @@ async function sendSerialCommand(cmd) {
 }
 
 // =============================================================================
-// 7. Interactive Terminal Logger
+// 9. Interactive Terminal Logger
 // =============================================================================
 function logTerminal(msg, type = '') {
+  if (!dom.termOutput) return;
   const line = document.createElement('div');
   line.className = `log-line ${type}`.trim();
   line.textContent = msg;
   dom.termOutput.appendChild(line);
 
-  // Keep terminal buffer bounded to 250 items
   if (dom.termOutput.children.length > 250) {
     dom.termOutput.removeChild(dom.termOutput.firstChild);
   }
 
-  if (dom.autoscrollChk.checked) {
+  if (dom.autoscrollChk && dom.autoscrollChk.checked) {
     dom.termOutput.scrollTop = dom.termOutput.scrollHeight;
   }
 }
 
 // =============================================================================
-// 8. Simulated Demo Mode (Physics Generator)
+// 10. Simulated Demo Mode (Multi-Drone Physics & Formation Dynamics)
 // =============================================================================
 function toggleDemoMode() {
   state.demoMode = !state.demoMode;
@@ -624,53 +1324,117 @@ function toggleDemoMode() {
   if (state.demoMode) {
     dom.demoModeBtn.classList.add('btn-primary');
     dom.demoModeBtn.classList.remove('btn-subtle');
-    logTerminal('Demo Physics Activated: Simulating real-time 3D flight dynamics.', 'info');
+    logTerminal('Demo Physics Activated: Simulating real-time 3D flight & 4-drone swarm formation.', 'info');
 
     let t = 0;
     state.demoTimer = setInterval(() => {
       t += 0.05;
       state.telem.systemState = 'FLIGHT';
       state.telem.armed = true;
-      state.telem.roll = Math.sin(t * 1.5) * 18.0;
-      state.telem.pitch = Math.cos(t * 1.2) * 12.0;
-      state.telem.yawRate = Math.sin(t * 0.8) * 25.0;
+      state.telem.roll = Math.sin(t * 1.5) * 16.0;
+      state.telem.pitch = Math.cos(t * 1.2) * 11.0;
+      state.telem.yawRate = Math.sin(t * 0.8) * 22.0;
 
       state.telem.ax = -Math.sin((state.telem.pitch * Math.PI) / 180);
       state.telem.ay = Math.sin((state.telem.roll * Math.PI) / 180);
       state.telem.az = Math.cos((state.telem.roll * Math.PI) / 180);
 
-      state.telem.gx = Math.cos(t * 1.5) * 27.0;
-      state.telem.gy = -Math.sin(t * 1.2) * 14.0;
+      state.telem.gx = Math.cos(t * 1.5) * 24.0;
+      state.telem.gy = -Math.sin(t * 1.2) * 13.0;
       state.telem.gz = state.telem.yawRate;
 
       // Realistic Quad-X motor mixing responses
       const baseThr = 512;
-      const rollCorr = state.telem.roll * 8.0;
-      const pitchCorr = state.telem.pitch * 8.0;
+      const rollCorr = state.telem.roll * 7.5;
+      const pitchCorr = state.telem.pitch * 7.5;
 
       state.telem.m1 = baseThr + rollCorr - pitchCorr;
       state.telem.m2 = baseThr - rollCorr - pitchCorr;
       state.telem.m3 = baseThr - rollCorr + pitchCorr;
       state.telem.m4 = baseThr + rollCorr + pitchCorr;
 
-      state.telem.battV = 3.92 - (t * 0.001);
-      state.telem.battPct = Math.max(0, 85 - (t * 0.02));
+      state.telem.battV = 3.92 - (t * 0.0008);
+      state.telem.battPct = Math.max(0, 88 - (t * 0.015));
       state.telem.loopHz = 500.0 + (Math.random() * 1.2 - 0.6);
 
+      // Smoothly animate swarm peer positions towards target formation slots
+      state.swarm.peers.forEach(peer => {
+        const driftX = Math.sin(t * 1.1 + peer.id) * 0.15;
+        const driftY = Math.cos(t * 0.9 + peer.id) * 0.15;
+        peer.relX += ((peer.targetX || 0) + driftX - (peer.relX || 0)) * 0.08;
+        peer.relY += ((peer.targetY || 0) + driftY - (peer.relY || 0)) * 0.08;
+        peer.lastSeen = Date.now();
+      });
+
+      renderSwarmFleet();
       updateTelemetryUI();
     }, 50);
+
+    // Seed 3 Swarm Peer Nodes for Demo Mode
+    state.swarm.peers.set(2, {
+      id: 2,
+      role: 'FOLL',
+      state: 'FLIGHT',
+      battMv: 3880,
+      battPct: 84,
+      roll: 2.1,
+      pitch: -1.2,
+      armed: true,
+      relX: -2.8,
+      relY: -2.4,
+      targetX: -2.8,
+      targetY: -2.4,
+      lastSeen: Date.now()
+    });
+
+    state.swarm.peers.set(3, {
+      id: 3,
+      role: 'FOLL',
+      state: 'FLIGHT',
+      battMv: 3790,
+      battPct: 76,
+      roll: -1.8,
+      pitch: 0.9,
+      armed: true,
+      relX: 2.8,
+      relY: -2.4,
+      targetX: 2.8,
+      targetY: -2.4,
+      lastSeen: Date.now()
+    });
+
+    state.swarm.peers.set(4, {
+      id: 4,
+      role: 'FOLL',
+      state: 'FLIGHT',
+      battMv: 3950,
+      battPct: 91,
+      roll: 0.5,
+      pitch: -0.4,
+      armed: true,
+      relX: 0.0,
+      relY: -4.6,
+      targetX: 0.0,
+      targetY: -4.6,
+      lastSeen: Date.now()
+    });
+
+    updateFormationTargets();
+    renderSwarmFleet();
 
   } else {
     clearInterval(state.demoTimer);
     state.demoTimer = null;
     dom.demoModeBtn.classList.remove('btn-primary');
     dom.demoModeBtn.classList.add('btn-subtle');
+    state.swarm.peers.clear();
+    renderSwarmFleet();
     logTerminal('Demo Physics Deactivated.', 'warn');
   }
 }
 
 // =============================================================================
-// 9. Event Listeners & Controls Binding
+// 11. Event Listeners & Controls Binding
 // =============================================================================
 function initEventListeners() {
   // Connect / Disconnect
@@ -682,7 +1446,7 @@ function initEventListeners() {
   // Demo Mode
   dom.demoModeBtn.addEventListener('click', toggleDemoMode);
 
-  // Emergency Stop
+  // Emergency Stop Local
   dom.emgStopBtn.addEventListener('click', () => {
     sendSerialCommand('disarm');
     logTerminal('EMERGENCY KILL TRIGGERED! Disarming all motors.', 'error');
@@ -704,18 +1468,89 @@ function initEventListeners() {
     dom.tabAccel.classList.remove('active');
   });
 
+  // Swarm Command Deck Event Listeners
+  if (dom.btnSetNodeId) {
+    dom.btnSetNodeId.addEventListener('click', () => {
+      const id = parseInt(dom.swarmNodeIdInput.value, 10);
+      if (id >= 1 && id <= 254) {
+        sendSerialCommand(`node ${id}`);
+        state.swarm.nodeId = id;
+        logTerminal(`Requested local Node ID change to ${id}.`, 'info');
+      } else {
+        alert('Node ID must be between 1 and 254.');
+      }
+    });
+  }
+
+  if (dom.btnSetRole) {
+    dom.btnSetRole.addEventListener('click', () => {
+      const role = dom.swarmRoleSelect.value;
+      sendSerialCommand(`role ${role}`);
+      state.swarm.role = role;
+      if (dom.footerLocalRole) dom.footerLocalRole.textContent = role.toUpperCase();
+      logTerminal(`Applied Swarm Role: ${role.toUpperCase()}.`, 'info');
+    });
+  }
+
+  if (dom.btnSwarmArm) {
+    dom.btnSwarmArm.addEventListener('click', () => {
+      sendSerialCommand('swarm_cmd arm');
+      logTerminal('Broadcasted SWARM ARM command.', 'info');
+      if (state.demoMode) {
+        state.swarm.peers.forEach(p => { p.armed = true; p.state = 'FLIGHT'; });
+        state.telem.armed = true;
+        renderSwarmFleet();
+      }
+    });
+  }
+
+  if (dom.btnSwarmDisarm) {
+    dom.btnSwarmDisarm.addEventListener('click', () => {
+      sendSerialCommand('swarm_cmd disarm');
+      logTerminal('Broadcasted SWARM DISARM command.', 'warn');
+      if (state.demoMode) {
+        state.swarm.peers.forEach(p => { p.armed = false; p.state = 'DISARMED'; });
+        state.telem.armed = false;
+        renderSwarmFleet();
+      }
+    });
+  }
+
+  if (dom.btnSwarmCalib) {
+    dom.btnSwarmCalib.addEventListener('click', () => {
+      sendSerialCommand('swarm_cmd calib');
+      logTerminal('Broadcasted SWARM CALIBRATE command.', 'info');
+    });
+  }
+
+  if (dom.btnSwarmTakeoff) {
+    dom.btnSwarmTakeoff.addEventListener('click', () => {
+      sendSerialCommand('swarm_cmd arm');
+      logTerminal('Broadcasted SYNCHRONIZED SWARM TAKEOFF SEQUENCE.', 'info');
+      if (state.demoMode) {
+        state.swarm.peers.forEach(p => { p.armed = true; p.state = 'FLIGHT'; });
+        state.telem.armed = true;
+        renderSwarmFleet();
+      }
+    });
+  }
+
+  if (dom.btnSwarmKill) {
+    dom.btnSwarmKill.addEventListener('click', () => {
+      sendSerialCommand('swarm_cmd stop');
+      logTerminal('EMERGENCY KILL BROADCASTED TO ENTIRE SWARM!', 'error');
+      if (state.demoMode) {
+        state.swarm.peers.forEach(p => { p.armed = false; p.state = 'DISARMED'; });
+        state.telem.armed = false;
+        renderSwarmFleet();
+      }
+    });
+  }
+
   // Diagnostics Actions
-  dom.btnCalibrate.addEventListener('click', () => {
-    sendSerialCommand('calibrate');
-  });
-
-  dom.btnArmToggle.addEventListener('click', () => {
-    sendSerialCommand('arm');
-  });
-
-  dom.btnDisarm.addEventListener('click', () => {
-    sendSerialCommand('disarm');
-  });
+  dom.btnCalibrate.addEventListener('click', () => sendSerialCommand('calibrate'));
+  dom.btnArmToggle.addEventListener('click', () => sendSerialCommand('arm'));
+  dom.btnDisarm.addEventListener('click', () => sendSerialCommand('disarm'));
 
   // Motor Bench Pulse Slider
   dom.motorSlider.addEventListener('input', (e) => {
@@ -759,12 +1594,14 @@ function initEventListeners() {
 }
 
 // =============================================================================
-// 10. Application Entrypoint
+// 12. Application Entrypoint
 // =============================================================================
 window.addEventListener('DOMContentLoaded', () => {
   initThreeJS();
   initOscilloscope();
+  initSwarmRadar();
+  initViewSwitcher();
   initEventListeners();
   updateTelemetryUI();
-  logTerminal('AeroCommand GCS ready. Click "Connect Drone" to link to COM10 via Web Serial.', 'info');
+  logTerminal('AeroCommand GCS initialized. Click Connect Drone to select COM port.', 'info');
 });

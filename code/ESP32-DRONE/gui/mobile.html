@@ -1,21 +1,11 @@
-/**
- * @file web_ui.h
- * @brief Zero-Install Mobile Touch Flight Controller UI for ESP32-S3 Drone.
- * Stored in flash (PROGMEM) and served over HTTP to smartphones.
- */
-
-#pragma once
-
-#include <pgmspace.h>
-
-static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>AeroCommand // Drone Flight Controller</title>
+  <title>AeroCommand // Drone Flight Controller (Mobile Preview)</title>
   <style>
     :root {
       --bg-deep: #060911;
@@ -759,22 +749,22 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   <!-- Top Cockpit Bar -->
   <header class="top-bar">
     <div class="brand-group">
-      <div id="conn-dot" class="status-dot"></div>
+      <div id="conn-dot" class="status-dot online"></div>
       <div>
-        <div class="drone-title">AeroCommand</div>
+        <div class="drone-title">AeroCommand Mobile</div>
       </div>
     </div>
 
     <!-- Live Telemetry Badges -->
     <div class="hud-pills">
       <div class="hud-item batt">
-        BATT: <strong id="val-batt">--.-V</strong>
+        BATT: <strong id="val-batt">3.85V</strong>
       </div>
       <div class="hud-item">
         ST: <strong id="val-state" style="color: var(--accent-emerald);">IDLE</strong>
       </div>
       <div class="hud-item ping">
-        <strong id="val-ping">--ms</strong>
+        <strong id="val-ping">12ms</strong>
       </div>
     </div>
 
@@ -988,71 +978,43 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Failsafe Disconnect Overlay -->
-  <div class="overlay-alert" id="disconnect-overlay">
-    <div class="alert-icon">
-      <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
-    </div>
-    <div style="font-size: 1.05rem; font-weight: 700; color: #fff;">LINK DISCONNECTED</div>
-    <div style="font-size: 0.78rem; color: var(--text-muted); max-width: 280px;">
-      Signal to drone lost. Flight controller safety watchdog automatically disarmed all motors.
-    </div>
-    <button id="btn-reconnect" class="btn-dock" style="margin-top: 8px; padding: 10px 20px; font-size: 0.78rem; background: var(--accent-cyan); color: #000; font-weight: 700;">
-      RETRY LINK
-    </button>
-  </div>
-
   <script>
-    // =========================================================================
     // Flight Control & Settings State
-    // =========================================================================
     const ctrl = {
-      rawThrottle: 0.0, // 0 to 1000
-      rawYaw: 0.0,      // -500 to +500
-      rawPitch: 0.0,    // -500 to +500
-      rawRoll: 0.0,     // -500 to +500
-      arm: 0,           // 0 = Disarm, 1 = Arm, 2 = Kill
+      rawThrottle: 0.0,
+      rawYaw: 0.0,
+      rawPitch: 0.0,
+      rawRoll: 0.0,
+      arm: 0,
       holdThrottle: true,
-      armed: false,
-      ws: null,
-      lastPingSent: 0,
-      pingMs: 0,
-      failsafeTimer: null
+      armed: false
     };
 
-    // User Configurable Inversions, Trims, and Limits (Persisted in localStorage)
     const settings = {
       invertPitch: false,
       invertRoll: false,
       invertYaw: false,
-      pitchTrim: 0,     // -100 to +100
-      rollTrim: 0,      // -100 to +100
-      yawTrim: 0,       // -100 to +100
-      maxThrottle: 75,  // 40% to 100%
-      maxAngle: 30      // 15 deg to 45 deg
+      pitchTrim: 0,
+      rollTrim: 0,
+      yawTrim: 0,
+      maxThrottle: 75,
+      maxAngle: 30
     };
 
     function loadSettings() {
       try {
         const saved = localStorage.getItem('resqmesh_mobile_cfg');
-        if (saved) {
-          Object.assign(settings, JSON.parse(saved));
-        }
-      } catch (e) {
-        console.warn("Could not load settings:", e);
-      }
+        if (saved) Object.assign(settings, JSON.parse(saved));
+      } catch (e) {}
     }
 
     function saveSettings() {
       try {
         localStorage.setItem('resqmesh_mobile_cfg', JSON.stringify(settings));
-      } catch (e) {
-        console.warn("Could not save settings:", e);
-      }
+      } catch (e) {}
       updateSettingsUI();
     }
 
-    // Cache DOM Elements
     const el = {
       connDot: document.getElementById('conn-dot'),
       valBatt: document.getElementById('val-batt'),
@@ -1077,20 +1039,16 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       pfdSky: document.getElementById('pfd-sky'),
       attPitch: document.getElementById('att-pitch'),
       attRoll: document.getElementById('att-roll'),
-      overlay: document.getElementById('disconnect-overlay'),
-      btnReconnect: document.getElementById('btn-reconnect'),
       gimbalLeft: document.getElementById('gimbal-left-zone'),
       puckLeft: document.getElementById('puck-left'),
       gimbalRight: document.getElementById('gimbal-right-zone'),
       puckRight: document.getElementById('puck-right'),
-      // Inlines Trims
       btnTrimPitchInc: document.getElementById('btn-trim-pitch-inc'),
       btnTrimPitchDec: document.getElementById('btn-trim-pitch-dec'),
       btnTrimRollInc: document.getElementById('btn-trim-roll-inc'),
       btnTrimRollDec: document.getElementById('btn-trim-roll-dec'),
       btnTrimYawInc: document.getElementById('btn-trim-yaw-inc'),
       btnTrimYawDec: document.getElementById('btn-trim-yaw-dec'),
-      // Modal controls
       chkInvertPitch: document.getElementById('chk-invert-pitch'),
       chkInvertRoll: document.getElementById('chk-invert-roll'),
       chkInvertYaw: document.getElementById('chk-invert-yaw'),
@@ -1137,16 +1095,9 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       el.readoutPrTrim.textContent = `P${settings.pitchTrim > 0 ? '+' : ''}${settings.pitchTrim} R${settings.rollTrim > 0 ? '+' : ''}${settings.rollTrim}`;
     }
 
-    // Modal Events
-    el.btnOpenTuning.addEventListener('click', () => {
-      el.tuningModal.classList.add('show');
-    });
-    el.pfdHorizon.addEventListener('click', () => {
-      el.tuningModal.classList.add('show');
-    });
-    el.modalCloseBtn.addEventListener('click', () => {
-      el.tuningModal.classList.remove('show');
-    });
+    el.btnOpenTuning.addEventListener('click', () => el.tuningModal.classList.add('show'));
+    el.pfdHorizon.addEventListener('click', () => el.tuningModal.classList.add('show'));
+    el.modalCloseBtn.addEventListener('click', () => el.tuningModal.classList.remove('show'));
 
     el.chkInvertPitch.addEventListener('change', (e) => { settings.invertPitch = e.target.checked; saveSettings(); });
     el.chkInvertRoll.addEventListener('change', (e) => { settings.invertRoll = e.target.checked; saveSettings(); });
@@ -1164,21 +1115,15 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     el.btnModalYInc.addEventListener('click', () => { settings.yawTrim = Math.min(100, settings.yawTrim + 2); saveSettings(); });
 
     el.btnResetTrims.addEventListener('click', () => {
-      settings.pitchTrim = 0;
-      settings.rollTrim = 0;
-      settings.yawTrim = 0;
-      saveSettings();
-      if (navigator.vibrate) navigator.vibrate(30);
+      settings.pitchTrim = 0; settings.rollTrim = 0; settings.yawTrim = 0; saveSettings();
     });
 
     el.sliderMaxThr.addEventListener('input', (e) => { settings.maxThrottle = parseInt(e.target.value); saveSettings(); });
     el.sliderMaxAngle.addEventListener('input', (e) => { settings.maxAngle = parseInt(e.target.value); saveSettings(); });
 
-    // Quick Gimbal Trim Buttons
     function stepTrim(key, delta) {
       settings[key] = Math.max(-100, Math.min(100, settings[key] + delta));
       saveSettings();
-      if (navigator.vibrate) navigator.vibrate(15);
     }
     el.btnTrimPitchInc.addEventListener('click', () => stepTrim('pitchTrim', +2));
     el.btnTrimPitchDec.addEventListener('click', () => stepTrim('pitchTrim', -2));
@@ -1187,16 +1132,11 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     el.btnTrimYawInc.addEventListener('click', () => stepTrim('yawTrim', +2));
     el.btnTrimYawDec.addEventListener('click', () => stepTrim('yawTrim', -2));
 
-    // =========================================================================
-    // Dual Virtual Gimbal Touch Engine
-    // =========================================================================
     function setupGimbal(zoneEl, puckEl, isThrottle, onChange) {
       let touchId = null;
       let maxRadius = 70;
 
-      function updateRadius() {
-        maxRadius = (zoneEl.clientWidth / 2) - 28;
-      }
+      function updateRadius() { maxRadius = (zoneEl.clientWidth / 2) - 28; }
       updateRadius();
       window.addEventListener('resize', updateRadius);
 
@@ -1208,7 +1148,6 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         let dx = clientX - centerX;
         let dy = clientY - centerY;
 
-        // Clamp to circle boundary
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > maxRadius) {
           dx = (dx / dist) * maxRadius;
@@ -1218,16 +1157,12 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         puckEl.style.transform = `translate(${dx}px, ${dy}px)`;
         puckEl.classList.add('active');
 
-        const normX = dx / maxRadius;
-        const normY = -(dy / maxRadius); // up is +1
-
-        onChange(normX, normY);
+        onChange(dx / maxRadius, -(dy / maxRadius));
       }
 
       function handleRelease() {
         touchId = null;
         puckEl.classList.remove('active');
-
         if (isThrottle && ctrl.holdThrottle) {
           const currentY = parseFloat(puckEl.style.transform.split(',')[1]) || 0;
           puckEl.style.transform = `translate(0px, ${currentY}px)`;
@@ -1238,18 +1173,22 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
         }
       }
 
+      // Mouse and touch listeners
+      let isMouseDown = false;
+      zoneEl.addEventListener('mousedown', (e) => { isMouseDown = true; handleMove(e.clientX, e.clientY); });
+      window.addEventListener('mousemove', (e) => { if (isMouseDown) handleMove(e.clientX, e.clientY); });
+      window.addEventListener('mouseup', () => { if (isMouseDown) { isMouseDown = false; handleRelease(); } });
+
       zoneEl.addEventListener('touchstart', (e) => {
         if (touchId !== null) return;
-        const touch = e.changedTouches[0];
-        touchId = touch.identifier;
-        handleMove(touch.clientX, touch.clientY);
+        touchId = e.changedTouches[0].identifier;
+        handleMove(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
       }, { passive: false });
 
       window.addEventListener('touchmove', (e) => {
         for (let i = 0; i < e.changedTouches.length; i++) {
-          const t = e.changedTouches[i];
-          if (t.identifier === touchId) {
-            handleMove(t.clientX, t.clientY);
+          if (e.changedTouches[i].identifier === touchId) {
+            handleMove(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
             break;
           }
         }
@@ -1257,236 +1196,96 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
       window.addEventListener('touchend', (e) => {
         for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === touchId) {
-            handleRelease();
-            break;
-          }
-        }
-      });
-
-      window.addEventListener('touchcancel', (e) => {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === touchId) {
-            handleRelease();
-            break;
-          }
+          if (e.changedTouches[i].identifier === touchId) { handleRelease(); break; }
         }
       });
     }
 
-    // Left Gimbal Bindings: Throttle (0 to 1000), Yaw (-500 to +500)
     setupGimbal(el.gimbalLeft, el.puckLeft, true, (nx, ny) => {
       ctrl.rawThrottle = Math.max(0, Math.min(1000, Math.round(((ny + 1) / 2) * 1000)));
       ctrl.rawYaw = Math.max(-500, Math.min(500, Math.round(nx * 500)));
-
-      const thrPct = Math.round((ctrl.rawThrottle / 1000) * 100);
-      el.readoutThr.textContent = `${thrPct}%`;
+      el.readoutThr.textContent = `${Math.round((ctrl.rawThrottle / 1000) * 100)}%`;
       el.readoutYaw.textContent = `${Math.round((ctrl.rawYaw / 500) * 200)}°/s`;
     });
 
-    // Right Gimbal Bindings: Pitch (-500 to +500), Roll (-500 to +500)
     setupGimbal(el.gimbalRight, el.puckRight, false, (nx, ny) => {
       ctrl.rawPitch = Math.max(-500, Math.min(500, Math.round(ny * 500)));
       ctrl.rawRoll = Math.max(-500, Math.min(500, Math.round(nx * 500)));
-
       el.readoutPitch.textContent = `${((ctrl.rawPitch / 500) * settings.maxAngle).toFixed(1)}°`;
       el.readoutRoll.textContent = `${((ctrl.rawRoll / 500) * settings.maxAngle).toFixed(1)}°`;
     });
 
-    // =========================================================================
-    // Slide to Arm Mechanism
-    // =========================================================================
+    // Arming Slide
     let armDrag = false;
     let armStartX = 0;
     const maxArmSlide = 120;
 
-    el.armHandle.addEventListener('touchstart', (e) => {
+    function startArm(x) {
       if (ctrl.armed) return;
-      if (ctrl.rawThrottle > 50) {
-        if (navigator.vibrate) navigator.vibrate(100);
-        alert("Safety Lockout: Lower throttle to 0% before arming!");
-        return;
-      }
-      armDrag = true;
-      armStartX = e.touches[0].clientX;
-    });
-
-    window.addEventListener('touchmove', (e) => {
+      if (ctrl.rawThrottle > 50) { alert("Safety Lockout: Lower throttle to 0% before arming!"); return; }
+      armDrag = true; armStartX = x;
+    }
+    function moveArm(x) {
       if (!armDrag) return;
-      const dx = Math.max(0, Math.min(maxArmSlide, e.touches[0].clientX - armStartX));
+      const dx = Math.max(0, Math.min(maxArmSlide, x - armStartX));
       el.armHandle.style.transform = `translateX(${dx}px)`;
+      if (dx >= maxArmSlide - 8) { armDrag = false; armDrone(); }
+    }
+    function endArm() {
+      if (!armDrag) return; armDrag = false; el.armHandle.style.transform = 'translateX(0px)';
+    }
 
-      if (dx >= maxArmSlide - 8) {
-        armDrag = false;
-        armDrone();
-      }
-    });
+    el.armHandle.addEventListener('mousedown', (e) => startArm(e.clientX));
+    window.addEventListener('mousemove', (e) => moveArm(e.clientX));
+    window.addEventListener('mouseup', endArm);
 
-    window.addEventListener('touchend', () => {
-      if (!armDrag) return;
-      armDrag = false;
-      el.armHandle.style.transform = 'translateX(0px)';
-    });
+    el.armHandle.addEventListener('touchstart', (e) => startArm(e.touches[0].clientX));
+    window.addEventListener('touchmove', (e) => moveArm(e.touches[0].clientX));
+    window.addEventListener('touchend', endArm);
 
     function armDrone() {
-      ctrl.armed = true;
-      ctrl.arm = 1;
+      ctrl.armed = true; ctrl.arm = 1;
       el.armTrack.classList.add('armed');
       el.armLabel.textContent = "ARMED - TAP TO DISARM";
       el.armHandle.style.transform = `translateX(${maxArmSlide}px)`;
-      if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+      el.connDot.className = 'status-dot armed';
+      el.valState.textContent = 'ARMED';
     }
 
     function disarmDrone() {
-      ctrl.armed = false;
-      ctrl.arm = 0;
+      ctrl.armed = false; ctrl.arm = 0;
       el.armTrack.classList.remove('armed');
       el.armLabel.textContent = "Slide to Arm >>";
       el.armHandle.style.transform = 'translateX(0px)';
-      if (navigator.vibrate) navigator.vibrate(50);
+      el.connDot.className = 'status-dot online';
+      el.valState.textContent = 'IDLE';
     }
 
-    el.armTrack.addEventListener('click', () => {
-      if (ctrl.armed) {
-        disarmDrone();
-      }
-    });
-
-    // Emergency Kill
-    el.btnKill.addEventListener('click', () => {
-      ctrl.arm = 2; // Emergency stop
-      disarmDrone();
-      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-    });
-
-    // Toggle Throttle Hold / Spring
+    el.armTrack.addEventListener('click', () => { if (ctrl.armed) disarmDrone(); });
+    el.btnKill.addEventListener('click', () => { ctrl.arm = 2; disarmDrone(); });
     el.btnThrMode.addEventListener('click', () => {
       ctrl.holdThrottle = !ctrl.holdThrottle;
       el.btnThrMode.textContent = ctrl.holdThrottle ? 'Hold Thr' : 'Spring Thr';
     });
 
-    // Calibrate Level
-    el.btnCalib.addEventListener('click', () => {
-      if (ctrl.armed) {
-        alert("Cannot calibrate while armed!");
-        return;
-      }
-      if (confirm("Calibrate IMU? Drone must be flat and completely motionless.")) {
-        sendPacket({ calib: 1 });
-      }
-    });
-
-    // =========================================================================
-    // WebSocket High-Speed Engine (40 Hz)
-    // =========================================================================
-    function initWebSocket() {
-      const wsUrl = `ws://${window.location.host}/ws`;
-      ctrl.ws = new WebSocket(wsUrl);
-
-      ctrl.ws.onopen = () => {
-        el.connDot.className = 'status-dot online';
-        el.overlay.classList.remove('show');
-        clearTimeout(ctrl.failsafeTimer);
-      };
-
-      ctrl.ws.onmessage = (e) => {
-        try {
-          const telem = JSON.parse(e.data);
-          // Ping calculation
-          if (ctrl.lastPingSent) {
-            ctrl.pingMs = Date.now() - ctrl.lastPingSent;
-            el.valPing.textContent = `${ctrl.pingMs}ms`;
-          }
-
-          // Telemetry HUD updates
-          if (telem.b !== undefined) el.valBatt.textContent = `${telem.b.toFixed(2)}V`;
-          if (telem.s !== undefined) {
-            el.valState.textContent = telem.s;
-            if (telem.s === 'ARMED' || telem.s === 'FLIGHT') {
-              el.connDot.className = 'status-dot armed';
-            } else {
-              el.connDot.className = 'status-dot online';
-            }
-          }
-
-          // Live Attitude Horizon
-          if (telem.p !== undefined && telem.r !== undefined) {
-            el.attPitch.textContent = `${telem.p >= 0 ? '+' : ''}${telem.p.toFixed(1)}°`;
-            el.attRoll.textContent = `${telem.r >= 0 ? '+' : ''}${telem.r.toFixed(1)}°`;
-
-            // Transform sky background: rotate by -roll, translate by pitch
-            const pitchOffset = Math.max(-28, Math.min(28, telem.p * 1.2));
-            el.pfdSky.style.transform = `rotate(${-telem.r}deg) translateY(${pitchOffset}px)`;
-          }
-
-          // Reset safety timeout
-          clearTimeout(ctrl.failsafeTimer);
-          ctrl.failsafeTimer = setTimeout(() => {
-            el.connDot.className = 'status-dot';
-            el.overlay.classList.add('show');
-          }, 600);
-
-        } catch (err) {
-          console.warn("Telem parse error:", err);
-        }
-      };
-
-      ctrl.ws.onerror = (err) => {
-        console.warn("WebSocket error:", err);
-      };
-
-      ctrl.ws.onclose = () => {
-        el.connDot.className = 'status-dot';
-        el.overlay.classList.add('show');
-        setTimeout(initWebSocket, 1500);
-      };
-    }
-
-    function sendPacket(extra = {}) {
-      if (ctrl.ws && ctrl.ws.readyState === WebSocket.OPEN) {
-        ctrl.lastPingSent = Date.now();
-
-        // 1. Apply Stick Inversions & Trim Adjustments
-        let effectivePitch = (settings.invertPitch ? -1 : 1) * ctrl.rawPitch + (settings.pitchTrim * 5);
-        let effectiveRoll  = (settings.invertRoll  ? -1 : 1) * ctrl.rawRoll  + (settings.rollTrim * 5);
-        let effectiveYaw   = (settings.invertYaw   ? -1 : 1) * ctrl.rawYaw   + (settings.yawTrim * 5);
-
-        // Clamp to [-500, +500]
-        effectivePitch = Math.max(-500, Math.min(500, Math.round(effectivePitch)));
-        effectiveRoll  = Math.max(-500, Math.min(500, Math.round(effectiveRoll)));
-        effectiveYaw   = Math.max(-500, Math.min(500, Math.round(effectiveYaw)));
-
-        // 2. Apply Max Throttle Ceiling Limit
-        const throttleCeiling = (settings.maxThrottle / 100.0) * 1000.0;
-        const effectiveThrottle = Math.min(ctrl.rawThrottle, throttleCeiling);
-
-        const payload = Object.assign({
-          t: Math.round(effectiveThrottle),
-          y: effectiveYaw,
-          p: effectivePitch,
-          r: effectiveRoll,
-          a: ctrl.arm
-        }, extra);
-
-        ctrl.ws.send(JSON.stringify(payload));
-      }
-    }
-
-    // 40 Hz Control Loop (25 ms interval)
+    // Simulated Telemetry Animation Loop for Preview
+    let simAngle = 0;
     setInterval(() => {
-      sendPacket();
-    }, 25);
+      simAngle += 0.05;
+      const simPitch = (Math.sin(simAngle) * 8.0) + (ctrl.rawPitch / 500) * 12.0;
+      const simRoll  = (Math.cos(simAngle * 0.7) * 10.0) + (ctrl.rawRoll / 500) * 15.0;
 
-    el.btnReconnect.addEventListener('click', () => {
-      initWebSocket();
-    });
+      el.attPitch.textContent = `${simPitch >= 0 ? '+' : ''}${simPitch.toFixed(1)}°`;
+      el.attRoll.textContent = `${simRoll >= 0 ? '+' : ''}${simRoll.toFixed(1)}°`;
+
+      const pitchOffset = Math.max(-28, Math.min(28, simPitch * 1.2));
+      el.pfdSky.style.transform = `rotate(${-simRoll}deg) translateY(${pitchOffset}px)`;
+    }, 40);
 
     window.addEventListener('load', () => {
       loadSettings();
       updateSettingsUI();
-      initWebSocket();
     });
   </script>
 </body>
 </html>
-)rawliteral";

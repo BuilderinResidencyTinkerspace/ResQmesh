@@ -1,40 +1,83 @@
-# Week 5
+# Week 5: Schematics, Star Grounds & KiCad Workflows
 
-**Goal this week:** Learn KiCad EDA software, design the custom schematic, and layout the flight controller / motor driver circuit for the micro-quadcopter.
+Before you connect four brushed DC motors capable of pulling 8 Amps of combined burst current to a delicate 3.3V microcontroller, you’d better have your electrical paths figured out down to the millimeter. 
 
-## What we did
+This week, we booted up KiCad to design the complete electrical schematic for ResQmesh. The goal wasn’t to send a board out to a commercial PCB fab—custom fab turnaround takes weeks and adds tooling fees that would violate our sub-₹3,000 budget. Instead, we used KiCad to design a bulletproof schematic and map out an exact point-to-point perfboard wiring layout that we could hand-solder directly onto the drone frame.
 
-- Studied KiCad EDA workflows, including schematic capture (Eeschema), custom symbol/footprint creation, netlist generation, and PCB design rules.
-- Created custom schematic symbols and verified footprints for:
-  - **Seeed Studio XIAO ESP32-S3** pin headers.
-  - **MPU9250 / MPU6050** 400 kHz I2C breakout.
-  - **AO3400A** N-channel MOSFETs in SOT-23 packaging.
-- Designed the full schematic for the quadcopter power and driver board:
-  - **4x Motor Driver Channels**: Low-side AO3400A switches with 100Ω series gate resistors to dampen ringing and 10kΩ gate pull-downs to prevent floating states at boot.
-  - **Inductive Kick Protection**: 1N5819 Schottky diodes antiparallel across motor terminals to safely clamp back-EMF flyback voltage spikes.
-  - **Battery Voltage Monitoring**: A 2:1 resistive divider (100kΩ / 100kΩ) stepping down the 4.2V max LiPo voltage to 2.1V for XIAO D0 (GPIO1 / ADC1_CH0).
-  - **Power Decoupling & Filtering**: Filter pads for a 470µF bulk capacitor across the battery rail and 100nF high-frequency ceramic caps across motor leads.
-- Applied star-grounding architecture in the schematic to isolate motor return paths from sensitive IMU digital/analog grounds.
-- Ran Electrical Rules Check (ERC) in KiCad to verify net connections and validate pin electrical types.
+---
 
-## Problems and blockers
+## The Silent Killer: Motor Flyback and Ground Bounce
 
-- **KiCad Learning Curve**: Getting familiar with footprint assignment, pin numbering conventions (verifying SOT-23 pinout: Gate=1, Source=2, Drain=3), and net labeling.
-- **Noise & Ground Bounce Mitigation**: Ensuring the inductive flyback from 4 brushed motors pulsing at 20 kHz would not cause voltage sag or freeze the ESP32-S3 core.
+If you've ever hooked a DC motor directly to an Arduino and watched the board reset the second the motor spins down, you've met **Back-EMF (Electromotive Force)**.
 
-## Decisions
+An electric motor is an inductor. When you turn a MOSFET ON, current builds up in the motor windings. When you turn the MOSFET OFF, the magnetic field collapses instantly, generating a massive reverse voltage spike:
 
-- **Star Grounding Scheme**: Tied motor source ground returns and MCU logic grounds together strictly at a single point (battery negative terminal) to prevent ground bounce on the I2C bus.
-- **Hardware Failsafe Gate Resistors**: Added 10kΩ pull-downs on all 4 gate lines so motors remain completely off during firmware flashing or microcontroller reboot.
-- **Circuit Design for Hand Assembly (No PCB Manufacturing)**: Decided to use KiCad strictly for schematic design, circuit validation, and wiring layout reference. The physical circuit will be hand-soldered on perfboard/point-to-point to keep per-node costs strictly under ₹3,000 and avoid manufacturing turnaround delays.
+$$V = -L \frac{di}{dt}$$
 
-## Next week
+On a 3.7V battery, that inductive kick can easily spike to **30V or higher** for a few nanoseconds. If that voltage reaches your microcontroller or the gate of your MOSFET, it punches through the gate oxide and destroys the silicon instantly.
 
-- Assemble and solder the physical motor driver circuit according to the KiCad schematic.
-- Inspect solder joints, check for shorts with a multimeter, and verify stable 3.3V logic levels.
-- Perform initial bench test of single-channel and four-channel motor PWM switching with the XIAO ESP32-S3.
+```
+       [ +3.7V LiPo Rail ]
+                |
+          +-----+-----+
+          |           |
+        [Motor]   [1N5819 Diode] <--- Clamps reverse flyback safely!
+          |           |
+          +-----+-----+
+                |
+              [Drain]
+      GPIO ---> [Gate]  AO3400A N-Channel MOSFET
+              [Source]
+                |
+          [Power GND] (Battery Negative)
+```
 
-## Links
+To kill this problem before it killed our hardware, our KiCad schematic incorporated three critical safety barriers:
 
-- Circuit Architecture & Schematic Analysis: [code/ESP32-DRONE/README.md](file:///e:/ResQmesh/code/ESP32-DRONE/README.md#3-electrical--driver-circuit-analysis)
-- Project Overview: [docs/index.md](index.md)
+1. **1N5819 Schottky Flyback Diodes:** Placed antiparallel across every motor terminal. When the MOSFET shuts off, the reverse inductive kick is immediately shunted through the diode back to the positive rail, clamping the spike safely to $V_{bat} + 0.45\text{ V}$.
+2. **100Ω Series Gate Resistors:** Dampens high-frequency $LC$ ringing between the ESP32 pin capacitance and the MOSFET gate trace.
+3. **10kΩ Gate Pull-Down Resistors:** Microcontroller GPIO pins float in high-impedance mode for a few milliseconds during bootup or firmware flashing. Without pull-down resistors, the gates pick up stray capacitive charge and turn the motors on unpredictably while the drone is sitting on your desk. The 10kΩ resistors hold the gates firmly at 0V until the firmware actively takes control.
+
+---
+
+## The Star Grounding Architecture
+
+The other major trap on a micro quadcopter is **ground bounce**. 
+
+When four coreless motors pulse at 20 kHz, several amps of current rush through the ground wire. If your IMU sensor shares that same ground trace, the resistance of the wire creates momentary voltage fluctuations ($\Delta V = I \cdot R$). 
+
+To an MPU9250 listening on a 400 kHz I2C bus, a 200mV ground bounce looks like invalid data or a bus collision. The I2C state machine hangs, the flight loop misses its timing, and the drone crashes.
+
+```
+WRONG (Daisy Chain):
+[Battery -] ------> [Motor GND] ------> [ESP32 GND] ------> [IMU GND]  <-- NOISE!
+                                            ^
+                       Motor current distorts IMU ground!
+
+CORRECT (Star Ground):
+                    +----> [Motor GND Returns] (Thick power trace)
+                    |
+[Battery Negative] -+----> [ESP32 Digital Ground]
+                    |
+                    +----> [IMU Ground] (Quiet, isolated analog rail)
+```
+
+We routed our schematic using strict **Star Grounding**: all high-current motor source returns converge at one single physical point—the negative battery solder pad. The ESP32 logic ground and IMU sensor ground branch off independently from that quiet origin point.
+
+---
+
+## Battery Sensing & Bulk Decoupling
+
+To keep our LiPo from dropping below the danger threshold (3.2V under load), we added a simple 2:1 resistive divider:
+- Two precision **100kΩ / 100kΩ** resistors step down the maximum 4.2V battery voltage to 2.1V.
+- This feeds directly into the XIAO ESP32-S3’s ADC pin (`D0 / GPIO1`), allowing our flight firmware to monitor battery health in real time without exceeding the 3.3V ADC limit.
+
+Finally, we placed a **470µF low-ESR bulk electrolytic capacitor** directly across the main battery pads to absorb sudden current surges during punch-outs, accompanied by **100nF ceramic decoupling caps** soldered directly across each motor tab to choke high-frequency brush arcing noise.
+
+---
+
+## Ready for the Iron
+
+With our schematic validated through KiCad’s Electrical Rules Check (ERC) and our point-to-point perfboard footprint planned out, the circuit blueprint is set in stone.
+
+Next week: the final component packages clear delivery, and we begin hand-wiring this entire circuit with tweezers, flux, and silicone wire.

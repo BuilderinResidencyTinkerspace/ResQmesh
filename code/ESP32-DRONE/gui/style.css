@@ -1,15 +1,18 @@
 /* ==========================================================================
-   AeroCommand GCS - Ultra-Clean Aerospace Cockpit Design System
+   AeroCommand GCS - Modern Bento-Style Aerospace Command Center
+   Curated Dark Obsidian Palette // Glassmorphic Bento Cards // Micro-Gradients
    ========================================================================== */
 
 :root {
-  --bg-deep: #080c15;
-  --bg-panel: rgba(15, 23, 42, 0.65);
-  --bg-panel-solid: #0f172a;
-  --bg-subtle: rgba(30, 41, 59, 0.5);
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-glow: rgba(56, 189, 248, 0.25);
+  --bg-deep: #070a13;
+  --bg-bento: linear-gradient(145deg, rgba(16, 24, 40, 0.72) 0%, rgba(10, 15, 29, 0.85) 100%);
+  --bg-bento-subtle: rgba(22, 32, 54, 0.55);
+  --bg-bento-hover: rgba(26, 38, 64, 0.65);
   
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-glow: rgba(56, 189, 248, 0.3);
+  --border-bento: 1px solid rgba(255, 255, 255, 0.08);
+
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
@@ -21,16 +24,20 @@
   --accent-amber: #f59e0b;
   --accent-rose: #f43f5e;
   --accent-rose-glow: rgba(244, 63, 94, 0.4);
+  --accent-purple: #a855f7;
 
   --font-display: 'Outfit', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  --radius-sm: 8px;
+  --radius-xs: 6px;
+  --radius-sm: 10px;
   --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-bento-sm: 16px;
+  --radius-bento: 22px;
   --radius-full: 9999px;
-  
-  --shadow-panel: 0 12px 36px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--border-subtle);
+
+  --shadow-bento: 0 16px 36px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  --shadow-bento-hover: 0 24px 48px -10px rgba(0, 0, 0, 0.65), 0 0 24px rgba(56, 189, 248, 0.14), inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
 }
 
 * {
@@ -43,11 +50,12 @@ body {
   font-family: var(--font-display);
   background: var(--bg-deep);
   background-image: 
-    radial-gradient(at 10% 10%, rgba(56, 189, 248, 0.05) 0%, transparent 45%),
-    radial-gradient(at 90% 90%, rgba(16, 185, 129, 0.04) 0%, transparent 45%),
+    radial-gradient(at 15% 15%, rgba(56, 189, 248, 0.06) 0%, transparent 45%),
+    radial-gradient(at 85% 85%, rgba(16, 185, 129, 0.05) 0%, transparent 45%),
+    radial-gradient(at 50% 50%, rgba(168, 85, 247, 0.03) 0%, transparent 55%),
     linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 36px 36px, 36px 36px;
   color: var(--text-primary);
   min-height: 100vh;
   display: flex;
@@ -57,15 +65,16 @@ body {
 }
 
 /* ==========================================================================
-   Header Bar (Minimalist Floating Cockpit Nav)
+   Header Bar (Minimalist Floating Cockpit Navigation)
    ========================================================================== */
 .header-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 32px;
-  background: rgba(8, 12, 21, 0.85);
+  padding: 12px 32px;
+  background: rgba(7, 10, 19, 0.85);
   backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid var(--border-subtle);
   position: sticky;
   top: 0;
@@ -98,72 +107,57 @@ body {
 .brand-title {
   font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   color: #ffffff;
 }
 
 .brand-subtitle {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-family: var(--font-mono);
   color: var(--text-muted);
   letter-spacing: 0.5px;
 }
 
-/* Central Telemetry Pills */
-.telemetry-status-group {
+/* Aerospace View Mode Selector (Segmented Capsule) */
+.view-mode-selector {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.nav-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-subtle);
+  background: rgba(15, 23, 42, 0.75);
+  padding: 3px;
   border-radius: var(--radius-full);
-  font-size: 0.78rem;
-  font-family: var(--font-mono);
+  border: 1px solid var(--border-subtle);
+  gap: 3px;
+}
+
+.view-btn {
+  background: transparent;
+  border: none;
   color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
 }
 
-.pulse-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-muted);
+.view-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
 }
 
-.pulse-dot.online {
-  background: var(--accent-emerald);
-  box-shadow: 0 0 8px var(--accent-emerald);
-  animation: pulse-glow 2s infinite;
+.view-btn.active {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(37, 99, 235, 0.3));
+  color: var(--accent-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
 }
 
-.pulse-dot.armed {
-  background: var(--accent-amber);
-  box-shadow: 0 0 8px var(--accent-amber);
-}
-
-.pulse-dot.alert {
-  background: var(--accent-rose);
-  box-shadow: 0 0 8px var(--accent-rose);
-  animation: alert-flash 0.6s infinite;
-}
-
-@keyframes pulse-glow {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
-}
-
-@keyframes alert-flash {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
-}
-
-/* Header Actions */
+/* Header Action Buttons */
 .header-actions {
   display: flex;
   align-items: center;
@@ -172,9 +166,9 @@ body {
 
 .btn {
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  padding: 8px 16px;
+  padding: 7px 15px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
@@ -198,7 +192,7 @@ body {
 }
 
 .btn-subtle {
-  background: var(--bg-subtle);
+  background: var(--bg-bento-subtle);
   color: var(--text-secondary);
   border-color: var(--border-subtle);
 }
@@ -222,167 +216,433 @@ body {
 }
 
 /* ==========================================================================
-   Clean Dashboard Grid (2 Columns)
+   Bento Grid Layout System
    ========================================================================== */
-.cockpit-grid {
+.workspace-container {
   flex: 1;
-  padding: 24px 32px;
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 24px;
-  max-width: 1680px;
+  width: 100%;
+  max-width: 1720px;
   margin: 0 auto;
+  padding: 20px 32px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 1. Bento Top Stat Strip (4 Micro-Bento Tiles) */
+.bento-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
   width: 100%;
 }
 
-.col-left, .col-right {
+.bento-stat-card {
+  padding: 16px 20px;
   display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.glass-panel {
-  background: var(--bg-panel);
-  backdrop-filter: blur(20px);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-panel);
-  padding: 20px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  display: flex;
-  flex-direction: column;
-}
-
-.glass-panel:hover {
-  border-color: var(--border-glow);
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  gap: 14px;
+  border-radius: var(--radius-bento-sm);
+  background: var(--bg-bento);
+  border: var(--border-bento);
+  box-shadow: var(--shadow-bento);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.panel-title {
-  font-size: 0.86rem;
-  font-weight: 600;
-  letter-spacing: 0.6px;
+.bento-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-bento-hover);
+}
+
+.bento-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bento-stat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.bento-stat-label {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: var(--text-secondary);
+}
+
+.bento-stat-value-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.panel-title svg {
-  width: 15px;
-  height: 15px;
-  fill: var(--accent-cyan);
+.bento-stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.bento-stat-sub {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  display: inline-block;
+}
+
+.pulse-dot.online {
+  background: var(--accent-emerald);
+  box-shadow: 0 0 10px var(--accent-emerald);
+  animation: pulse-glow 2s infinite;
+}
+
+.pulse-dot.armed {
+  background: var(--accent-amber);
+  box-shadow: 0 0 10px var(--accent-amber);
+}
+
+.pulse-dot.alert {
+  background: var(--accent-rose);
+  box-shadow: 0 0 10px var(--accent-rose);
+  animation: alert-flash 0.6s infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+@keyframes alert-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+/* 2. Main Bento Grid */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+  width: 100%;
+}
+
+.bento-card {
+  background: var(--bg-bento);
+  border: var(--border-bento);
+  border-radius: var(--radius-bento);
+  box-shadow: var(--shadow-bento);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.bento-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 189, 248, 0.28);
+  box-shadow: var(--shadow-bento-hover);
+}
+
+/* Grid Column Spans */
+.bento-span-12 { grid-column: span 12; }
+.bento-span-7  { grid-column: span 7; }
+.bento-span-6  { grid-column: span 6; }
+.bento-span-5  { grid-column: span 5; }
+.bento-span-4  { grid-column: span 4; }
+
+/* Bento Card Header */
+.bento-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px 14px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.bento-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bento-icon-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-cyan);
+  flex-shrink: 0;
+}
+
+.bento-icon-badge svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.bento-title {
+  font-size: 0.94rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #f8fafc;
+}
+
+.bento-subtitle {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
 }
 
 .chip {
+  font-size: 0.68rem;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
-  color: var(--accent-cyan);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--bg-bento-subtle);
   border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
 }
 
 /* ==========================================================================
-   Section 1: 3D Attitude Horizon
+   Module 1: 3D Attitude Horizon & Flight Pose
    ========================================================================== */
 .attitude-viewport-wrapper {
   position: relative;
+  width: 100%;
   height: 380px;
-  border-radius: var(--radius-sm);
+  background: radial-gradient(circle at center, #0d1527 0%, #060913 100%);
   overflow: hidden;
-  background: radial-gradient(circle at center, #0f172a 0%, #080c15 100%);
-  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 #three-container {
   width: 100%;
   height: 100%;
+  display: block;
 }
 
 .hud-floating-bar {
   position: absolute;
-  top: 14px;
-  left: 14px;
-  right: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 100%;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   pointer-events: none;
 }
 
 .hud-readout-pill {
-  background: rgba(8, 12, 21, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 8px 16px;
   display: flex;
+  align-items: center;
   gap: 20px;
-  font-family: var(--font-mono);
+  padding: 8px 20px;
+  background: rgba(8, 14, 26, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .hud-item {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
 }
 
 .hud-item-label {
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
+  font-weight: 500;
 }
 
 .hud-item-val {
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--accent-cyan);
 }
 
 /* ==========================================================================
-   Section 2: Live Sensor Oscilloscope
+   Module 2: Quad-X Propulsion Matrix
+   ========================================================================== */
+.propulsion-frame {
+  position: relative;
+  width: 100%;
+  height: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(16, 185, 129, 0.03) 0%, transparent 70%);
+}
+
+.propulsion-center-hub {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: #0b1120;
+  border: 2px dashed rgba(56, 189, 248, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
+}
+
+.hub-brand {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent-cyan);
+}
+
+.hub-arm-state {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent-emerald);
+}
+
+.motor-card-clean {
+  position: absolute;
+  width: 140px;
+  padding: 10px;
+  background: rgba(11, 17, 32, 0.85);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+#motor-card-1 { top: 20px; left: 24px; }
+#motor-card-2 { top: 20px; right: 24px; }
+#motor-card-4 { bottom: 20px; left: 24px; }
+#motor-card-3 { bottom: 20px; right: 24px; }
+
+.motor-ring-gauge {
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+}
+
+.motor-ring-gauge svg {
+  transform: rotate(-90deg);
+}
+
+.ring-bg {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.ring-fg {
+  stroke: var(--accent-cyan);
+  transition: stroke-dashoffset 0.15s ease, stroke 0.2s ease;
+}
+
+.motor-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.motor-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dir-badge {
+  font-size: 0.58rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.dir-cw { background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); }
+.dir-ccw { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+
+.motor-duty-large {
+  font-size: 1.15rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.motor-pct-small {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Module 3: Live Sensor Oscilloscope (MPU-9250)
    ========================================================================== */
 .segmented-tabs {
   display: flex;
-  background: var(--bg-deep);
+  background: var(--bg-bento-subtle);
   padding: 3px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-subtle);
+  gap: 2px;
 }
 
 .seg-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  font-family: var(--font-display);
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
   font-weight: 600;
-  padding: 5px 12px;
+  padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .seg-btn.active {
-  background: #1e293b;
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--accent-cyan);
 }
 
 .scope-container {
-  height: 170px;
-  background: rgba(8, 12, 21, 0.5);
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  width: 100%;
+  height: 240px;
+  background: #060913;
   position: relative;
-  overflow: hidden;
-  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 #oscilloscope-canvas {
@@ -393,10 +653,11 @@ body {
 
 .scope-legend {
   display: flex;
-  justify-content: flex-end;
-  gap: 24px;
+  justify-content: space-around;
+  padding: 12px 18px;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
+  background: rgba(10, 15, 28, 0.6);
 }
 
 .legend-channel {
@@ -416,165 +677,219 @@ body {
 .dot-z { background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
 
 /* ==========================================================================
-   Section 3: Quad-X Interactive Propulsion Cross
+   Module 4: Tactical Airspace Radar Scope & Mesh Geometry
    ========================================================================== */
-.propulsion-frame {
-  position: relative;
-  padding: 10px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 16px;
-}
-
-.propulsion-center-hub {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 100px;
-  height: 100px;
-  background: radial-gradient(circle, #1e293b 0%, #0f172a 100%);
-  border: 1px solid var(--border-glow);
-  border-radius: 50%;
+.radar-toolbar-right {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
-  z-index: 10;
+  gap: 10px;
 }
 
-.hub-brand {
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
-}
-
-.hub-arm-state {
-  font-size: 0.75rem;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--accent-emerald);
-}
-
-.motor-card-clean {
-  background: rgba(30, 41, 59, 0.35);
+.radar-range-group {
+  display: flex;
+  align-items: center;
+  background: var(--bg-bento-subtle);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 14px;
+  padding: 2px 6px;
+  gap: 4px;
+}
+
+.seg-btn-radar {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.seg-btn-radar.active {
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.formation-bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
+  padding: 8px 20px;
+  background: rgba(8, 14, 26, 0.65);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.formation-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.formation-pill-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.formation-pill {
+  background: var(--bg-bento-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.motor-card-clean:hover {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(56, 189, 248, 0.4);
+.formation-pill:hover {
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #ffffff;
 }
 
-.motor-ring-gauge {
+.formation-pill.active {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: var(--accent-emerald);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+  font-weight: 600;
+}
+
+.radar-viewport-container {
   position: relative;
-  width: 58px;
-  height: 58px;
-  flex-shrink: 0;
+  width: 100%;
+  height: 480px;
+  background: #050811;
+  background-image: 
+    radial-gradient(circle at center, rgba(16, 185, 129, 0.03) 0%, transparent 70%),
+    linear-gradient(rgba(255, 255, 255, 0.01) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.01) 1px, transparent 1px);
+  background-size: 100% 100%, 30px 30px, 30px 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.motor-ring-gauge svg {
-  transform: rotate(-90deg);
+#swarm-radar-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.ring-bg {
-  stroke: rgba(255, 255, 255, 0.08);
+.radar-hud-overlay {
+  position: absolute;
+  padding: 5px 10px;
+  background: rgba(8, 14, 26, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xs);
+  pointer-events: none;
+  font-family: var(--font-mono);
 }
 
-.ring-fg {
-  stroke: var(--accent-cyan);
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.15s ease, stroke 0.2s ease;
+.radar-hud-overlay.top-left { top: 12px; left: 14px; }
+.radar-hud-overlay.top-right { top: 12px; right: 14px; text-align: right; }
+.radar-hud-overlay.bottom-left { bottom: 12px; left: 14px; }
+.radar-hud-overlay.bottom-right { bottom: 12px; right: 14px; text-align: right; }
+
+.radar-hud-tag {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
-.motor-meta {
+.radar-hud-metric {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 1px;
+}
+
+.radar-stats-footer {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 12px 18px;
+  gap: 12px;
+  background: rgba(10, 15, 28, 0.6);
+}
+
+.radar-stat-item {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.motor-label-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.dir-badge {
-  font-size: 0.6rem;
+.radar-stat-lbl {
+  font-size: 0.62rem;
   font-family: var(--font-mono);
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.dir-cw { color: var(--accent-cyan); }
-.dir-ccw { color: var(--accent-emerald); }
-
-.motor-duty-large {
-  font-family: var(--font-mono);
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.motor-pct-small {
-  font-size: 0.7rem;
   color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.radar-stat-val {
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 /* ==========================================================================
-   Section 4: Control & Diagnostics Tools
+   Module 5 & 6: Diagnostics, Swarm Commands, Inputs & Controls
    ========================================================================== */
-.controls-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
 .sub-box {
-  background: var(--bg-deep);
+  background: rgba(10, 15, 28, 0.6);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 12px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 10px;
 }
 
 .sub-box-title {
   font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
+  font-family: var(--font-mono);
   color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.controls-row {
+  display: flex;
+  gap: 8px;
 }
 
 .inline-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.select-clean {
-  background: #1e293b;
+.select-clean, .input-clean {
+  background: rgba(15, 23, 42, 0.7);
   border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xs);
   color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
   padding: 6px 10px;
-  border-radius: 6px;
-  font-family: var(--font-display);
-  font-size: 0.78rem;
   outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.select-clean:focus, .input-clean:focus {
+  border-color: var(--accent-cyan);
 }
 
 .slider-clean {
@@ -584,23 +899,185 @@ body {
 }
 
 .slider-readout {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--accent-cyan);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ==========================================================================
+   Module 7: Airspace Fleet Telemetry Matrix & Inspector
+   ========================================================================== */
+.swarm-fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+  min-height: 100px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+.swarm-fleet-grid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.swarm-fleet-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.swarm-empty-placeholder {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 14px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  text-align: center;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+}
+
+.swarm-peer-card {
+  background: rgba(8, 13, 24, 0.75);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.swarm-peer-card:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+.swarm-peer-card.armed {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+}
+
+.swarm-peer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.swarm-peer-id {
   font-family: var(--font-mono);
   font-size: 0.8rem;
-  width: 40px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.swarm-peer-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-emerald);
+}
+
+.swarm-peer-badge {
+  font-size: 0.62rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.swarm-peer-badge.lead {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--accent-amber);
+}
+
+.swarm-peer-badge.foll {
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--accent-cyan);
+}
+
+.swarm-peer-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.swarm-peer-stat-val {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.swarm-batt-bar-bg {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.swarm-batt-bar-fg {
+  height: 100%;
+  background: var(--accent-cyan);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.inspector-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.insp-stat-item {
+  background: rgba(15, 23, 42, 0.6);
+  padding: 6px 10px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insp-stat-item span {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.insp-stat-item strong {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
   color: var(--accent-cyan);
 }
 
 /* ==========================================================================
-   Section 5: Interactive Serial Terminal
+   Module 8: Serial Console Terminal
    ========================================================================== */
 .console-box {
-  background: #050811;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  width: 100%;
+  height: 180px;
+  background: #04070f;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 10px;
+  padding: 10px 14px;
   font-family: var(--font-mono);
-  font-size: 0.76rem;
-  height: 140px;
+  font-size: 0.74rem;
+  color: #94a3b8;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -608,39 +1085,37 @@ body {
 }
 
 .console-box::-webkit-scrollbar {
-  width: 5px;
+  width: 4px;
 }
 
 .console-box::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
 }
 
 .log-line {
-  color: #94a3b8;
+  line-height: 1.4;
   word-break: break-all;
-  line-height: 1.35;
 }
 
-.log-line.info { color: #38bdf8; }
-.log-line.warn { color: #f59e0b; }
-.log-line.error { color: #f43f5e; }
+.log-line.info { color: var(--accent-cyan); }
+.log-line.warn { color: var(--accent-amber); }
+.log-line.error { color: var(--accent-rose); font-weight: 700; }
 
 .console-input-row {
   display: flex;
   gap: 8px;
-  margin-top: 10px;
 }
 
 .console-input {
   flex: 1;
-  background: #050811;
+  background: rgba(10, 15, 28, 0.7);
   border: 1px solid var(--border-subtle);
-  color: #ffffff;
-  padding: 8px 12px;
   border-radius: var(--radius-sm);
+  color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.76rem;
+  padding: 8px 12px;
   outline: none;
   transition: border-color 0.2s ease;
 }
@@ -649,26 +1124,97 @@ body {
   border-color: var(--accent-cyan);
 }
 
+/* ==========================================================================
+   Bento View Modes Behavior
+   ========================================================================== */
+/* Cockpit Mode */
+body.view-cockpit .bento-radar-module {
+  display: none !important;
+}
+body.view-cockpit .bento-cockpit-module {
+  display: flex !important;
+}
+body.view-cockpit #bento-attitude-card { grid-column: span 7; }
+body.view-cockpit #bento-propulsion-card { grid-column: span 5; }
+body.view-cockpit #bento-oscilloscope-card { grid-column: span 6; }
+body.view-cockpit #bento-diagnostics-card { grid-column: span 6; }
+body.view-cockpit #bento-terminal-card { grid-column: span 12; }
+
+/* Radar Mode */
+body.view-radar .bento-cockpit-module {
+  display: none !important;
+}
+body.view-radar .bento-radar-module {
+  display: flex !important;
+}
+body.view-radar #bento-radar-card { grid-column: span 7; }
+body.view-radar #bento-swarm-cmd-card { grid-column: span 5; }
+body.view-radar #bento-fleet-matrix-card { grid-column: span 6; }
+body.view-radar #bento-terminal-card { grid-column: span 6; }
+
+/* Dual Mode (Unified Bento Master Grid) */
+body.view-dual .bento-cockpit-module {
+  display: flex !important;
+}
+body.view-dual .bento-radar-module {
+  display: flex !important;
+}
+body.view-dual #bento-attitude-card { grid-column: span 7; }
+body.view-dual #bento-propulsion-card { grid-column: span 5; }
+body.view-dual #bento-radar-card { grid-column: span 7; }
+body.view-dual #bento-swarm-cmd-card { grid-column: span 5; }
+body.view-dual #bento-oscilloscope-card { grid-column: span 6; }
+body.view-dual #bento-diagnostics-card { grid-column: span 6; }
+body.view-dual #bento-fleet-matrix-card { grid-column: span 6; }
+body.view-dual #bento-terminal-card { grid-column: span 6; }
+
+/* ==========================================================================
+   Responsive Adaptations
+   ========================================================================== */
+@media (max-width: 1240px) {
+  .bento-stat-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .bento-card {
+    grid-column: span 12 !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .header-bar {
+    padding: 10px 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .view-mode-selector {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .bento-stat-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-container {
+    padding: 12px 14px;
+  }
+}
+
+/* ==========================================================================
+   Footer Bar
+   ========================================================================== */
 .footer-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 32px;
+  padding: 12px 32px;
+  background: rgba(7, 10, 19, 0.9);
+  border-top: 1px solid var(--border-subtle);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   color: var(--text-muted);
-  border-top: 1px solid var(--border-subtle);
-  background: rgba(8, 12, 21, 0.7);
-  backdrop-filter: blur(10px);
-  margin-top: auto;
-}
-
-/* ==========================================================================
-   Responsive
-   ========================================================================== */
-@media (max-width: 1200px) {
-  .cockpit-grid {
-    grid-template-columns: 1fr;
-    padding: 16px;
-  }
+  letter-spacing: 0.5px;
 }

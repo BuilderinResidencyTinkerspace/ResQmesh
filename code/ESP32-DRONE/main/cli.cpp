@@ -65,6 +65,7 @@ void SerialCLI::update() {
         last_stream_ms_ = now;
         const IMUData &d = fc_.getLatestIMUData();
         const LoopStats &stats = fc_.getStats();
+        Receiver &rx = fc_.getReceiver();
         CLI_PRINTF("$TELEM,%s,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%u,%u,%u,%u,%.2f,%.0f,%.1f,%d\r\n",
                    fc_.getSafety().getStateString(),
                    fc_.getAttitude().getRoll(),
@@ -80,6 +81,27 @@ void SerialCLI::update() {
                    fc_.getBattery().getPercentage(),
                    stats.current_freq_hz,
                    fc_.getSafety().isArmed() ? 1 : 0);
+
+        // Stream Swarm mesh metadata
+        CLI_PRINTF("$SWARM,%u,%u,%u\r\n",
+                   (unsigned)rx.getNodeId(),
+                   (unsigned)rx.getRole(),
+                   (unsigned)rx.getPeerTable().getActivePeerCount());
+
+        for (size_t i = 0; i < SWARM_MAX_PEERS; i++) {
+            const SwarmPeer *p = rx.getPeerTable().getPeer(i);
+            if (p && p->active) {
+                CLI_PRINTF("$PEER,%u,%u,%u,%u,%u,%.1f,%.1f,%d\r\n",
+                           (unsigned)p->node_id,
+                           (unsigned)p->role,
+                           (unsigned)p->state,
+                           (unsigned)p->battery_mv,
+                           (unsigned)p->battery_pct,
+                           p->roll_deg,
+                           p->pitch_deg,
+                           p->armed ? 1 : 0);
+            }
+        }
     }
 
     while (Serial.available() > 0) {
@@ -170,6 +192,14 @@ void SerialCLI::processCommand(const char *cmd_line) {
         printBattery();
     } else if (strncmp(cmd_line, "motors", 6) == 0) {
         printMotors();
+    } else if (strncmp(cmd_line, "swarm_cmd", 9) == 0) {
+        handleSwarmCmd(cmd_line + 9);
+    } else if (strncmp(cmd_line, "swarm", 5) == 0) {
+        printSwarm();
+    } else if (strncmp(cmd_line, "node", 4) == 0) {
+        handleNodeId(cmd_line + 4);
+    } else if (strncmp(cmd_line, "role", 4) == 0) {
+        handleRole(cmd_line + 4);
     } else if (strncmp(cmd_line, "calibrate", 9) == 0) {
         CLI_PRINTF("Initiating IMU calibration...\r\n");
         if (fc_.calibrateSensors()) {
@@ -342,9 +372,103 @@ void SerialCLI::handleSimulate(const char *args) {
     CLI_PRINTF("Injected simulated IMU: Roll=%.1f deg, Pitch=%.1f deg\r\n", sim_roll, sim_pitch);
 }
 
+void SerialCLI::printSwarm() {
+    Receiver &rx = fc_.getReceiver();
+    const SwarmPeerTable &table = rx.getPeerTable();
+    CLI_PRINTF("\r\n## SWARM NETWORK STATUS\r\n");
+    CLI_PRINTF("Local Node ID:  %u\r\n", (unsigned)rx.getNodeId());
+    CLI_PRINTF("Swarm Role:     %s\r\n", 
+        rx.getRole() == SWARM_ROLE_LEADER ? "LEADER" : 
+        (rx.getRole() == SWARM_ROLE_FOLLOWER ? "FOLLOWER" : "STANDALONE"));
+    CLI_PRINTF("Active Peers:   %u / %u\r\n", (unsigned)table.getActivePeerCount(), (unsigned)SWARM_MAX_PEERS);
+    CLI_PRINTF("Channel:        %d (ESP-NOW 2.4 GHz Broadcast)\r\n", ESPNOW_WIFI_CHANNEL);
+    CLI_PRINTF("--------------------------------------------------------------------------------\r\n");
+    CLI_PRINTF("ID  ROLE      STATE      BATT(V)  BATT(%%)  ROLL(deg) PITCH(deg) ARMED  PING(ms)\r\n");
+    CLI_PRINTF("--------------------------------------------------------------------------------\r\n");
+    bool found = false;
+    for (size_t i = 0; i < SWARM_MAX_PEERS; i++) {
+        const SwarmPeer *p = table.getPeer(i);
+        if (p && p->active) {
+            found = true;
+            int64_t ping_ms = 0;
+#if defined(ESP_PLATFORM)
+            ping_ms = (esp_timer_get_time() - p->last_seen_us) / 1000LL;
+#endif
+            const char *r_str = (p->role == SWARM_ROLE_LEADER) ? "LEAD" : ((p->role == SWARM_ROLE_FOLLOWER) ? "FOLL" : "NODE");
+            const char *s_str = (p->state == STATE_FLIGHT) ? "FLIGHT" : ((p->state == STATE_ARMED) ? "ARMED" : "DISARM");
+            CLI_PRINTF("%-3u %-9s %-10s %-8.2f %-8u %-+9.1f %-+10.1f %-6s %lld\r\n",
+                (unsigned)p->node_id, r_str, s_str,
+                (float)p->battery_mv / 1000.0f, (unsigned)p->battery_pct,
+                p->roll_deg, p->pitch_deg,
+                p->armed ? "YES" : "NO", (long long)ping_ms);
+        }
+    }
+    if (!found) {
+        CLI_PRINTF("  (No other swarm peers detected within range yet)\r\n");
+    }
+    CLI_PRINTF("--------------------------------------------------------------------------------\r\n");
+}
+
+void SerialCLI::handleNodeId(const char *args) {
+    while (*args == ' ') args++;
+    if (*args == '\0') {
+        CLI_PRINTF("Current Node ID: %u\r\n", (unsigned)fc_.getReceiver().getNodeId());
+        CLI_PRINTF("Usage to change: node <1-254>\r\n");
+        return;
+    }
+    int new_id = atoi(args);
+    if (new_id < 1 || new_id > 254) {
+        CLI_PRINTF("ERROR: Node ID must be between 1 and 254 (0xFF is broadcast reserved).\r\n");
+        return;
+    }
+    fc_.getReceiver().setNodeId((uint8_t)new_id);
+    CLI_PRINTF("SUCCESS: Node ID updated to %d.\r\n", new_id);
+}
+
+void SerialCLI::handleRole(const char *args) {
+    while (*args == ' ') args++;
+    if (strstr(args, "lead") != nullptr) {
+        fc_.getReceiver().setRole(SWARM_ROLE_LEADER);
+        CLI_PRINTF("Swarm Role set to: LEADER\r\n");
+    } else if (strstr(args, "foll") != nullptr) {
+        fc_.getReceiver().setRole(SWARM_ROLE_FOLLOWER);
+        CLI_PRINTF("Swarm Role set to: FOLLOWER\r\n");
+    } else if (strstr(args, "stand") != nullptr) {
+        fc_.getReceiver().setRole(SWARM_ROLE_STANDALONE);
+        CLI_PRINTF("Swarm Role set to: STANDALONE\r\n");
+    } else {
+        CLI_PRINTF("Usage: role <leader | follower | standalone>\r\n");
+    }
+}
+
+void SerialCLI::handleSwarmCmd(const char *args) {
+    while (*args == ' ') args++;
+    Receiver &rx = fc_.getReceiver();
+
+    if (strncmp(args, "arm", 3) == 0) {
+        rx.sendSwarmCommand(CMD_SWARM_ARM_ALL, SWARM_NODE_BROADCAST);
+        CLI_PRINTF("Swarm broadcast transmitted: CMD_SWARM_ARM_ALL\r\n");
+    } else if (strncmp(args, "disarm", 6) == 0) {
+        rx.sendSwarmCommand(CMD_SWARM_DISARM_ALL, SWARM_NODE_BROADCAST);
+        CLI_PRINTF("Swarm broadcast transmitted: CMD_SWARM_DISARM_ALL\r\n");
+    } else if (strncmp(args, "stop", 4) == 0 || strncmp(args, "kill", 4) == 0) {
+        rx.sendSwarmCommand(CMD_SWARM_EMERGENCY_STOP, SWARM_NODE_BROADCAST);
+        CLI_PRINTF("Swarm broadcast transmitted: CMD_SWARM_EMERGENCY_STOP (All Kill)\r\n");
+    } else if (strncmp(args, "calib", 5) == 0) {
+        rx.sendSwarmCommand(CMD_SWARM_CALIBRATE_ALL, SWARM_NODE_BROADCAST);
+        CLI_PRINTF("Swarm broadcast transmitted: CMD_SWARM_CALIBRATE_ALL\r\n");
+    } else {
+        CLI_PRINTF("Usage: swarm_cmd <arm | disarm | stop | calib>\r\n");
+    }
+}
+
 void SerialCLI::printHelp() {
     CLI_PRINTF("\r\nAvailable Commands:\r\n");
     CLI_PRINTF("  status        - Overview of state, sensors, battery, and loop statistics\r\n");
+    CLI_PRINTF("  swarm         - Swarm mesh status, node ID, role, and discovered peers\r\n");
+    CLI_PRINTF("  node <id>     - Display or set local drone Node ID (1-254)\r\n");
+    CLI_PRINTF("  role <r>      - Set role: role <leader | follower | standalone>\r\n");
+    CLI_PRINTF("  swarm_cmd <c> - Broadcast command: swarm_cmd <arm | disarm | stop | calib>\r\n");
     CLI_PRINTF("  imu           - Real-time raw and calibrated IMU accelerometer and gyro data\r\n");
     CLI_PRINTF("  attitude      - Complementary filter roll, pitch, and yaw-rate estimates\r\n");
     CLI_PRINTF("  pid           - Current cascaded PID controller gains and error tracking\r\n");

@@ -179,15 +179,15 @@ extern "C" {
 #define MOTOR_PWM_OFF           0           // Motors fully off
 #define MOTOR_PWM_MIN_SPIN      60          // Minimum duty required to start 720 coreless motor
 #define MOTOR_PWM_IDLE_ARM      50          // Spin-on-arm duty (~5%) to indicate armed state
-#define MOTOR_PWM_MAX_FLIGHT    1000        // Maximum flight duty (headroom for voltage drop)
+#define MOTOR_PWM_MAX_FLIGHT    800         // Safe flight duty ceiling (prevents battery brownout)
 
 // Safety switch: Must be set to 1 explicitly to enable serial motor test command
 #define MOTOR_TEST_ENABLED      1
 
 // =============================================================================
-// 9. RECEIVER LINK CONFIGURATION (Wi-Fi SoftAP & Phone Control)
+// 9. RECEIVER LINK CONFIGURATION (Wi-Fi SoftAP & ESP-NOW Swarm)
 // =============================================================================
-// Receiver Mode: 1 = Wi-Fi SoftAP (Smartphone Touch Controller), 0 = ESP-NOW (Hardware Remote)
+// Receiver Mode: 0 = ESP-NOW Swarm, 1 = Wi-Fi SoftAP (Smartphone Touch Controller)
 #define RECEIVER_MODE_WIFI          1
 
 // Wi-Fi SoftAP Configuration (Used when RECEIVER_MODE_WIFI == 1)
@@ -199,9 +199,15 @@ extern "C" {
 // ESP-NOW Configuration (Used when RECEIVER_MODE_WIFI == 0)
 #define ESPNOW_WIFI_CHANNEL         1
 
+// Swarm Mesh Configuration
+#define SWARM_DEFAULT_NODE_ID       1           // Default Node ID for this drone (1..254)
+#define SWARM_MAX_PEERS             16          // Max tracked neighbor nodes in swarm table
+#define SWARM_HEARTBEAT_INTERVAL_MS 100         // 10 Hz heartbeat broadcast
+#define SWARM_PEER_TIMEOUT_MS       3000        // Peer expired if no heartbeat in 3000 ms
+
 // Safety Watchdog Timeout: Failsafe automatically triggers and zeroes all motor
 // outputs if no control packet is received within this timeout window.
-#define RECEIVER_TIMEOUT_MS         400         // 400 ms watchdog (anti-flyaway)
+#define RECEIVER_TIMEOUT_MS         300         // 300 ms watchdog (anti-flyaway)
 #define STICK_THROTTLE_MIN          0
 #define STICK_THROTTLE_MAX          1000
 #define STICK_ANGLE_MAX_DEG         30.0f       // Max stick tilt command (±30 degrees)

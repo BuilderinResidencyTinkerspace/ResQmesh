@@ -36,7 +36,11 @@ private:
     void printPID();
     void printBattery();
     void printMotors();
+    void printSwarm();
     void printHelp();
+    void handleNodeId(const char *args);
+    void handleRole(const char *args);
+    void handleSwarmCmd(const char *args);
     void handleMotorTest(const char *args);
     void handleSimulate(const char *args);
 

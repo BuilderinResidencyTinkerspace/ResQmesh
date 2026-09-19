@@ -1,7 +1,9 @@
 /**
  * @file receiver.h
- * @brief Wireless Flight Control Receiver Subsystem.
- * Supports Wi-Fi SoftAP + WebSocket (Smartphone Touch Controller) and ESP-NOW.
+ * @brief Wireless Flight Control Receiver Subsystem with ESP-NOW Swarm Support.
+ *
+ * Supports Wi-Fi SoftAP + WebSocket (Smartphone Touch Controller) and
+ * high-performance ESP-NOW multi-agent Swarm networking.
  */
 
 #pragma once
@@ -10,6 +12,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "config.h"
+#include "swarm.h"
 
 // Flight modes commanded by transmitter
 enum FlightMode : uint8_t {
@@ -19,7 +22,8 @@ enum FlightMode : uint8_t {
 };
 
 /**
- * @brief 18-byte packed control packet transmitted over ESP-NOW.
+ * @brief 16-byte packed legacy control packet transmitted over ESP-NOW.
+ * Retained for backwards compatibility with existing transmitters.
  */
 #pragma pack(push, 1)
 struct ControlPacket {
@@ -57,7 +61,7 @@ public:
     ~Receiver();
 
     /**
-     * @brief Initialize receiver subsystem (Wi-Fi SoftAP or ESP-NOW).
+     * @brief Initialize receiver subsystem (ESP-NOW Swarm or Wi-Fi SoftAP).
      * @return true if initialized successfully.
      */
     bool init();
@@ -77,7 +81,7 @@ public:
     static void onDataRecv(const uint8_t *mac_addr, const uint8_t *data, int len);
 
     /**
-     * @brief Store latest drone telemetry to stream back to phone over WebSocket.
+     * @brief Store latest drone telemetry to stream back over WebSocket or ESP-NOW.
      */
     void setTelemetry(float batt_v, float pitch, float roll, const char *state_str, float loop_hz);
 
@@ -87,9 +91,31 @@ public:
     void processWebSocketFrame(const char *json_str, size_t len, char *resp_buf, size_t max_resp_len);
 
     /**
-     * @brief Inject simulated control packet (for unit tests / simulation).
+     * @brief Broadcast ESP-NOW Swarm Heartbeat packet to neighbor drones.
+     */
+    bool sendHeartbeat(uint8_t state, uint16_t batt_mv, uint8_t batt_pct,
+                       float roll, float pitch, float yaw_rate, bool armed, uint32_t uptime_s);
+
+    /**
+     * @brief Send Swarm mission command (broadcast or directed to target node).
+     */
+    bool sendSwarmCommand(uint8_t cmd_id, uint8_t target_id, const uint8_t *payload = nullptr, size_t payload_len = 0);
+
+    /**
+     * @brief Check and consume pending high-level swarm command (e.g. ARM_ALL, DISARM_ALL, EMERGENCY_STOP).
+     */
+    bool hasPendingSwarmCommand(SwarmCommandId &cmd, uint8_t *payload = nullptr);
+    void clearPendingSwarmCommand();
+
+    /**
+     * @brief Inject simulated legacy control packet (for unit tests).
      */
     void injectPacket(const ControlPacket &packet, int64_t now_us);
+
+    /**
+     * @brief Inject arbitrary ESP-NOW Swarm packet (for unit tests & simulation).
+     */
+    void injectSwarmPacket(const uint8_t *data, size_t len, int64_t now_us);
 
     /**
      * @brief Calculate CRC-16-CCITT for packet validation.
@@ -98,10 +124,21 @@ public:
 
     bool isConnected() const { return is_connected_; }
 
+    // Node & Swarm Accessors
+    uint8_t getNodeId() const { return node_id_; }
+    void setNodeId(uint8_t id) { node_id_ = id; }
+
+    uint8_t getRole() const { return role_; }
+    void setRole(uint8_t role) { role_ = role; }
+
+    SwarmPeerTable& getPeerTable() { return peer_table_; }
+    const SwarmPeerTable& getPeerTable() const { return peer_table_; }
+
     static Receiver *getInstance() { return instance_; }
 
 private:
     void processRawPacket(const ControlPacket &pkt, int64_t now_us);
+    void processSwarmPacket(const uint8_t *data, size_t len, int64_t now_us);
 
     ControlPacket latest_packet_;
     int64_t last_packet_time_us_;
@@ -111,7 +148,18 @@ private:
     bool is_connected_;
     bool is_first_packet_;
 
-    // Telemetry cache for web clients
+    // Swarm identity & state
+    uint8_t node_id_;
+    uint8_t role_;
+    SwarmPeerTable peer_table_;
+    uint32_t tx_sequence_;
+
+    // Pending swarm mission command
+    SwarmCommandId pending_cmd_;
+    uint8_t pending_cmd_payload_[8];
+    bool has_pending_cmd_;
+
+    // Telemetry cache for web clients / CLI
     float telem_batt_v_;
     float telem_pitch_;
     float telem_roll_;

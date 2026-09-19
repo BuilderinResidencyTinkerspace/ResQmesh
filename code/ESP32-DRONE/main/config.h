@@ -182,22 +182,31 @@ extern "C" {
   60 // Minimum duty required to start 720 coreless motor
 #define MOTOR_PWM_IDLE_ARM 50 // Spin-on-arm duty (~5%) to indicate armed state
 #define MOTOR_PWM_MAX_FLIGHT                                                   \
-  1000 // Maximum flight duty (headroom for voltage drop)
+  800 // Safe flight duty ceiling (prevents battery brownout)
 
 // Safety switch: Must be set to 1 explicitly to enable serial motor test
 // command
 #define MOTOR_TEST_ENABLED 1
 
 // =============================================================================
-// 9. RECEIVER LINK (ESP-NOW)
+// 9. RECEIVER LINK & SWARM PROTOCOL (ESP-NOW)
 // =============================================================================
+// Receiver Mode: 0 = ESP-NOW Swarm, 1 = Wi-Fi SoftAP (Phone Control)
+#define RECEIVER_MODE_WIFI 1
+
 #define ESPNOW_WIFI_CHANNEL 1
-#define RECEIVER_TIMEOUT_MS 200 // Failsafe triggers if no packet for 200 ms
+#define RECEIVER_TIMEOUT_MS 300 // Failsafe triggers if no packet for 300 ms
 #define STICK_THROTTLE_MIN 0
 #define STICK_THROTTLE_MAX 1000
 #define STICK_ANGLE_MAX_DEG 30.0f     // Max stick tilt command (±30 degrees)
 #define STICK_YAW_RATE_MAX_DPS 200.0f // Max stick yaw rate command (±200 deg/s)
 #define ARM_THROTTLE_MAX 100          // Throttle must be < 10% to allow arming
+
+// Swarm Mesh Configuration
+#define SWARM_DEFAULT_NODE_ID 1        // Default Node ID for this drone (1..254)
+#define SWARM_MAX_PEERS 16             // Max tracked neighbor nodes in swarm table
+#define SWARM_HEARTBEAT_INTERVAL_MS 100 // 10 Hz heartbeat broadcast
+#define SWARM_PEER_TIMEOUT_MS 3000     // Peer expired if no heartbeat in 3000 ms
 
 // =============================================================================
 // 10. BATTERY MONITOR (1S LIPO)

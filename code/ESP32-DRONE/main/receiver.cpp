@@ -1,7 +1,9 @@
 /**
  * @file receiver.cpp
- * @brief Wireless Flight Control Receiver Subsystem Implementation.
- * Supports Wi-Fi SoftAP + WebSocket (Smartphone Touch Controller) and ESP-NOW.
+ * @brief Wireless Flight Control Receiver Subsystem with ESP-NOW Swarm Support.
+ *
+ * Implements ESP-NOW multi-agent mesh packet reception, broadcast heartbeat
+ * transmission, command execution, and legacy packet fallback.
  */
 
 #include "receiver.h"
@@ -17,7 +19,7 @@
 #if (RECEIVER_MODE_WIFI == 1)
 #include <WiFi.h>
 #include <esp_http_server.h>
-#include "firmware/web_ui.h"
+#include "web_ui.h"
 #else
 #include "esp_wifi.h"
 #include "esp_now.h"
@@ -46,7 +48,6 @@ static esp_err_t http_index_handler(httpd_req_t *req) {
 
 static esp_err_t ws_control_handler(httpd_req_t *req) {
     if (req->method == HTTP_GET) {
-        // WebSocket handshake complete
         return ESP_OK;
     }
 
@@ -69,7 +70,6 @@ static esp_err_t ws_control_handler(httpd_req_t *req) {
         rx->processWebSocketFrame((const char *)rx_buf, ws_pkt.len, tx_buf, sizeof(tx_buf));
     }
 
-    // Send telemetry back to phone client
     if (tx_buf[0] != '\0') {
         httpd_ws_frame_t resp_pkt;
         memset(&resp_pkt, 0, sizeof(resp_pkt));
@@ -136,11 +136,17 @@ Receiver::Receiver()
       packets_lost_(0),
       is_connected_(false),
       is_first_packet_(true),
+      node_id_(SWARM_DEFAULT_NODE_ID),
+      role_(SWARM_ROLE_FOLLOWER),
+      tx_sequence_(0),
+      pending_cmd_(CMD_SWARM_NONE),
+      has_pending_cmd_(false),
       telem_batt_v_(3.85f),
       telem_pitch_(0.0f),
       telem_roll_(0.0f),
       telem_loop_hz_(500.0f) {
     memset(&latest_packet_, 0, sizeof(latest_packet_));
+    memset(pending_cmd_payload_, 0, sizeof(pending_cmd_payload_));
     strncpy(telem_state_, "DISARMED", sizeof(telem_state_));
     instance_ = this;
 }
@@ -195,11 +201,10 @@ bool Receiver::init() {
     }
 
     ESP_LOGI(TAG, "SoftAP online! Connect phone to SSID '%s' -> navigate to http://192.168.4.1", WIFI_AP_SSID);
-
     return start_web_server();
 
 #else
-    ESP_LOGI(TAG, "Initializing ESP-NOW receiver subsystem...");
+    ESP_LOGI(TAG, "Initializing ESP-NOW Swarm Node (Node ID: %d, Channel: %d)...", node_id_, ESPNOW_WIFI_CHANNEL);
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_err_t err = esp_wifi_init(&cfg);
@@ -225,7 +230,23 @@ bool Receiver::init() {
         return false;
     }
 
-    ESP_LOGI(TAG, "ESP-NOW receiver initialized on channel %d", ESPNOW_WIFI_CHANNEL);
+    // Register 2.4GHz Broadcast Peer (FF:FF:FF:FF:FF:FF) for Swarm Heartbeats & Commands
+    static const uint8_t s_broadcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    esp_now_peer_info_t peer_info = {};
+    memcpy(peer_info.peer_addr, s_broadcast_mac, 6);
+    peer_info.channel = ESPNOW_WIFI_CHANNEL;
+    peer_info.encrypt = false;
+
+    if (esp_now_is_peer_exist(s_broadcast_mac) == false) {
+        esp_err_t p_err = esp_now_add_peer(&peer_info);
+        if (p_err != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to register ESP-NOW broadcast peer: 0x%x", p_err);
+        } else {
+            ESP_LOGI(TAG, "ESP-NOW broadcast peer registered successfully.");
+        }
+    }
+
+    ESP_LOGI(TAG, "ESP-NOW Swarm Subsystem online on Channel %d. Ready for multi-agent mesh.", ESPNOW_WIFI_CHANNEL);
     return true;
 #endif
 #else
@@ -284,7 +305,6 @@ void Receiver::processWebSocketFrame(const char *json_str, size_t len, char *res
     is_connected_ = true;
     packets_received_++;
 
-    // Generate telemetry frame back to phone
     if (resp_buf && max_resp_len > 0) {
         snprintf(resp_buf, max_resp_len,
             "{\"b\":%.2f,\"p\":%.1f,\"r\":%.1f,\"s\":\"%s\",\"l\":%.0f,\"a\":%d}",
@@ -315,52 +335,230 @@ void Receiver::processRawPacket(const ControlPacket &pkt, int64_t now_us) {
     is_connected_ = true;
 }
 
+void Receiver::processSwarmPacket(const uint8_t *data, size_t len, int64_t now_us) {
+    if (!data || len < sizeof(SwarmHeader)) return;
+
+    const SwarmHeader *hdr = reinterpret_cast<const SwarmHeader *>(data);
+    if (hdr->magic[0] != SWARM_MAGIC_0 || hdr->magic[1] != SWARM_MAGIC_1) {
+        return;
+    }
+
+    switch (hdr->msg_type) {
+        case SWARM_MSG_CONTROL: {
+            if (len != sizeof(SwarmControlPacket)) return;
+            const SwarmControlPacket *cp = reinterpret_cast<const SwarmControlPacket *>(data);
+
+            // Check if packet is targeted to our node or broadcast to all
+            if (cp->header.target_id != node_id_ && cp->header.target_id != SWARM_NODE_BROADCAST) {
+                return; // Addressed to a different drone in the swarm
+            }
+
+            // Verify CRC
+            uint16_t computed_crc = computeCRC(data, sizeof(SwarmControlPacket) - sizeof(uint16_t));
+            if (computed_crc != cp->crc) {
+                ESP_LOGW(TAG, "Swarm Control CRC error: 0x%04X != 0x%04X", computed_crc, cp->crc);
+                return;
+            }
+
+            // Map into standard control packet
+            ControlPacket pkt;
+            pkt.throttle = cp->throttle;
+            pkt.roll     = cp->roll;
+            pkt.pitch    = cp->pitch;
+            pkt.yaw      = cp->yaw;
+            pkt.arm      = cp->arm;
+            pkt.mode     = cp->mode;
+            pkt.sequence = cp->header.sequence;
+            pkt.crc      = cp->crc;
+            processRawPacket(pkt, now_us);
+            break;
+        }
+
+        case SWARM_MSG_HEARTBEAT: {
+            if (len != sizeof(SwarmHeartbeatPacket)) return;
+            const SwarmHeartbeatPacket *hb = reinterpret_cast<const SwarmHeartbeatPacket *>(data);
+
+            // Verify CRC
+            uint16_t computed_crc = computeCRC(data, sizeof(SwarmHeartbeatPacket) - sizeof(uint16_t));
+            if (computed_crc != hb->crc) {
+                return;
+            }
+
+            // Update decentralized peer mesh table
+            peer_table_.updatePeer(*hb, now_us);
+            break;
+        }
+
+        case SWARM_MSG_COMMAND: {
+            if (len != sizeof(SwarmCommandPacket)) return;
+            const SwarmCommandPacket *cmd = reinterpret_cast<const SwarmCommandPacket *>(data);
+
+            if (cmd->header.target_id != node_id_ && cmd->header.target_id != SWARM_NODE_BROADCAST) {
+                return;
+            }
+
+            uint16_t computed_crc = computeCRC(data, sizeof(SwarmCommandPacket) - sizeof(uint16_t));
+            if (computed_crc != cmd->crc) {
+                ESP_LOGW(TAG, "Swarm Command CRC error: 0x%04X != 0x%04X", computed_crc, cmd->crc);
+                return;
+            }
+
+            pending_cmd_ = (SwarmCommandId)cmd->cmd_id;
+            memcpy(pending_cmd_payload_, cmd->payload, sizeof(pending_cmd_payload_));
+            has_pending_cmd_ = true;
+
+            // Direct safety enforcement on urgent swarm commands
+            if (pending_cmd_ == CMD_SWARM_EMERGENCY_STOP) {
+                latest_packet_.arm = 2;
+                latest_packet_.throttle = 0;
+                last_packet_time_us_ = now_us;
+                is_connected_ = true;
+            } else if (pending_cmd_ == CMD_SWARM_DISARM_ALL) {
+                latest_packet_.arm = 0;
+                latest_packet_.throttle = 0;
+                last_packet_time_us_ = now_us;
+                is_connected_ = true;
+            } else if (pending_cmd_ == CMD_SWARM_ARM_ALL) {
+                latest_packet_.arm = 1;
+                last_packet_time_us_ = now_us;
+                is_connected_ = true;
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
 void Receiver::onDataRecv(const uint8_t *mac_addr, const uint8_t *data, int len) {
-    if (!instance_ || !data) return;
-
-    if ((size_t)len != sizeof(ControlPacket)) {
-        ESP_LOGW(TAG, "Invalid packet size: %d (expected %d)", len, (int)sizeof(ControlPacket));
-        return;
-    }
-
-    const ControlPacket *pkt = reinterpret_cast<const ControlPacket *>(data);
-
-    uint16_t computed_crc = computeCRC(data, sizeof(ControlPacket) - sizeof(uint16_t));
-    if (computed_crc != pkt->crc) {
-        ESP_LOGW(TAG, "CRC mismatch: 0x%04X != 0x%04X", computed_crc, pkt->crc);
-        return;
-    }
+    if (!instance_ || !data || len <= 0) return;
 
 #if defined(ESP_PLATFORM)
     int64_t now_us = esp_timer_get_time();
 #else
     int64_t now_us = 0;
 #endif
-    instance_->processRawPacket(*pkt, now_us);
+
+    // 1. Check for ResQmesh Swarm Protocol framing ('R', 'Q')
+    if ((size_t)len >= sizeof(SwarmHeader) && data[0] == SWARM_MAGIC_0 && data[1] == SWARM_MAGIC_1) {
+        instance_->processSwarmPacket(data, (size_t)len, now_us);
+        return;
+    }
+
+    // 2. Fallback: Legacy 16-byte ControlPacket compatibility
+    if ((size_t)len == sizeof(ControlPacket)) {
+        const ControlPacket *pkt = reinterpret_cast<const ControlPacket *>(data);
+        uint16_t computed_crc = computeCRC(data, sizeof(ControlPacket) - sizeof(uint16_t));
+        if (computed_crc != pkt->crc) {
+            ESP_LOGW(TAG, "Legacy CRC mismatch: 0x%04X != 0x%04X", computed_crc, pkt->crc);
+            return;
+        }
+        instance_->processRawPacket(*pkt, now_us);
+        return;
+    }
+
+    ESP_LOGW(TAG, "Unknown packet received, size=%d bytes", len);
 }
 
 void Receiver::injectPacket(const ControlPacket &packet, int64_t now_us) {
     processRawPacket(packet, now_us);
 }
 
+void Receiver::injectSwarmPacket(const uint8_t *data, size_t len, int64_t now_us) {
+    processSwarmPacket(data, len, now_us);
+}
+
+bool Receiver::sendHeartbeat(uint8_t state, uint16_t batt_mv, uint8_t batt_pct,
+                             float roll, float pitch, float yaw_rate, bool armed, uint32_t uptime_s) {
+    SwarmHeartbeatPacket pkt;
+    pkt.header.magic[0] = SWARM_MAGIC_0;
+    pkt.header.magic[1] = SWARM_MAGIC_1;
+    pkt.header.msg_type = SWARM_MSG_HEARTBEAT;
+    pkt.header.target_id = SWARM_NODE_BROADCAST;
+    pkt.header.sender_id = node_id_;
+    pkt.header.sequence  = ++tx_sequence_;
+
+    pkt.role             = role_;
+    pkt.state            = state;
+    pkt.battery_mv       = batt_mv;
+    pkt.battery_pct      = batt_pct;
+    pkt.roll_deg_x10     = (int16_t)(roll * 10.0f);
+    pkt.pitch_deg_x10    = (int16_t)(pitch * 10.0f);
+    pkt.yaw_rate_dps_x10 = (int16_t)(yaw_rate * 10.0f);
+    pkt.armed            = armed ? 1 : 0;
+    pkt.uptime_s         = uptime_s;
+    pkt.crc              = computeCRC((const uint8_t *)&pkt, sizeof(pkt) - sizeof(uint16_t));
+
+#if defined(ESP_PLATFORM) && (RECEIVER_MODE_WIFI == 0)
+    static const uint8_t bcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    esp_err_t err = esp_now_send(bcast_mac, (const uint8_t *)&pkt, sizeof(pkt));
+    return (err == ESP_OK);
+#else
+    return true;
+#endif
+}
+
+bool Receiver::sendSwarmCommand(uint8_t cmd_id, uint8_t target_id, const uint8_t *payload, size_t payload_len) {
+    SwarmCommandPacket pkt;
+    pkt.header.magic[0] = SWARM_MAGIC_0;
+    pkt.header.magic[1] = SWARM_MAGIC_1;
+    pkt.header.msg_type = SWARM_MSG_COMMAND;
+    pkt.header.target_id = target_id;
+    pkt.header.sender_id = node_id_;
+    pkt.header.sequence  = ++tx_sequence_;
+
+    pkt.cmd_id = cmd_id;
+    memset(pkt.payload, 0, sizeof(pkt.payload));
+    if (payload && payload_len > 0) {
+        size_t cp_len = (payload_len > sizeof(pkt.payload)) ? sizeof(pkt.payload) : payload_len;
+        memcpy(pkt.payload, payload, cp_len);
+    }
+    pkt.crc = computeCRC((const uint8_t *)&pkt, sizeof(pkt) - sizeof(uint16_t));
+
+#if defined(ESP_PLATFORM) && (RECEIVER_MODE_WIFI == 0)
+    static const uint8_t bcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    esp_err_t err = esp_now_send(bcast_mac, (const uint8_t *)&pkt, sizeof(pkt));
+    return (err == ESP_OK);
+#else
+    return true;
+#endif
+}
+
+bool Receiver::hasPendingSwarmCommand(SwarmCommandId &cmd, uint8_t *payload) {
+    if (!has_pending_cmd_) return false;
+    cmd = pending_cmd_;
+    if (payload) {
+        memcpy(payload, pending_cmd_payload_, sizeof(pending_cmd_payload_));
+    }
+    has_pending_cmd_ = false;
+    pending_cmd_ = CMD_SWARM_NONE;
+    return true;
+}
+
+void Receiver::clearPendingSwarmCommand() {
+    has_pending_cmd_ = false;
+    pending_cmd_ = CMD_SWARM_NONE;
+}
+
 bool Receiver::update(ReceiverData &data, int64_t now_us) {
     int64_t timeout_us = (int64_t)RECEIVER_TIMEOUT_MS * 1000LL;
 
-    // Strict watchdog: if signal drops or phone sleeps, immediately trip failsafe
+    // Strict watchdog: if signal drops or node is isolated, trip failsafe
     if (last_packet_time_us_ == 0 || (now_us - last_packet_time_us_) > timeout_us) {
         is_connected_ = false;
 
-        data.throttle       = 0.0f;
-        data.roll_angle     = 0.0f;
-        data.pitch_angle    = 0.0f;
-        data.yaw_rate       = 0.0f;
-        data.arm_command    = false;
-        data.emergency_stop = false;
-        data.mode           = MODE_ANGLE;
-        data.sequence       = last_sequence_;
+        data.throttle         = 0.0f;
+        data.roll_angle       = 0.0f;
+        data.pitch_angle      = 0.0f;
+        data.yaw_rate         = 0.0f;
+        data.arm_command      = false;
+        data.emergency_stop   = false;
+        data.mode             = MODE_ANGLE;
+        data.sequence         = last_sequence_;
         data.packets_received = packets_received_;
-        data.packets_lost   = packets_lost_;
-        data.is_connected   = false;
+        data.packets_lost     = packets_lost_;
+        data.is_connected     = false;
         return false;
     }
 

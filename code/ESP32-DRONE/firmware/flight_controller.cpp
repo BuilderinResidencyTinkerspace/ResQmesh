@@ -143,6 +143,21 @@ void FlightController::runIteration(int64_t now_us) {
     // 4. Retrieve latest pilot commands from Receiver
     receiver_.update(latest_rx_, now_us);
 
+    // 4b. Check for Swarm-wide / Directed Mission Commands
+    SwarmCommandId swarm_cmd;
+    uint8_t cmd_payload[8];
+    if (receiver_.hasPendingSwarmCommand(swarm_cmd, cmd_payload)) {
+        if (swarm_cmd == CMD_SWARM_EMERGENCY_STOP) {
+            emergencyStop();
+        } else if (swarm_cmd == CMD_SWARM_DISARM_ALL) {
+            requestDisarm();
+        } else if (swarm_cmd == CMD_SWARM_CALIBRATE_ALL && !safety_.isArmed()) {
+            calibrateSensors();
+        } else if (swarm_cmd == CMD_SWARM_SET_LEADER) {
+            receiver_.setRole(cmd_payload[0] == receiver_.getNodeId() ? SWARM_ROLE_LEADER : SWARM_ROLE_FOLLOWER);
+        }
+    }
+
     // 5. Battery voltage check
     battery_.readVoltage();
 
@@ -233,7 +248,7 @@ void FlightController::runIteration(int64_t now_us) {
     stats_.loop_time_us = 400;
 #endif
 
-    // Stream telemetry to receiver for Mobile Web HUD (10 Hz)
+    // Stream telemetry and broadcast ESP-NOW Swarm Heartbeat (10 Hz)
     if (sample_counter_ % 50 == 0) {
         receiver_.setTelemetry(
             battery_.getVoltage(),
@@ -242,6 +257,22 @@ void FlightController::runIteration(int64_t now_us) {
             safety_.getStateString(),
             stats_.current_freq_hz
         );
+
+        // Broadcast Swarm Heartbeat
+        uint32_t uptime_s = (uint32_t)(now_us / 1000000ULL);
+        receiver_.sendHeartbeat(
+            (uint8_t)safety_.getState(),
+            (uint16_t)(battery_.getVoltage() * 1000.0f),
+            (uint8_t)battery_.getPercentage(),
+            attitude_.getRoll(),
+            attitude_.getPitch(),
+            attitude_.getYawRate(),
+            safety_.isArmed(),
+            uptime_s
+        );
+
+        // Sweep for stale peers in mesh
+        receiver_.getPeerTable().cleanupStalePeers(now_us, (int64_t)SWARM_PEER_TIMEOUT_MS * 1000LL);
     }
 
     // Update frequency statistics every 500 iterations (~1 second)

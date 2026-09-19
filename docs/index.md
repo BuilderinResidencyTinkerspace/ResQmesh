@@ -113,14 +113,15 @@ ResQmesh is designed as a versatile multi-mission platform capable of adapting a
 
 ## Weekly Logs
 
-Follow the development progress through our weekly milestone logs:
+Follow the development journey through our weekly build logs:
 
-- [Week 1](week-01.md)
-- [Week 2](week-02.md)
-- [Week 3](week-03.md)
-- [Week 4](week-04.md)
-- [Week 5](week-05.md)
-- [Week 6](week-06.md)
-- [Week 7](week-07.md)
-- [Week 8](week-08.md)
-- [Week 9](week-09.md)
+- [Week 1: The ₹3,000 Swarm Gamble](week-01.md)
+- [Week 2: Iterations, Snapped Arms & Slicer Shrinkage](week-02.md)
+- [Week 3: Counting Pennies & Chasing Specs](week-03.md)
+- [Week 4: Refreshing Courier Tracking & Workbench Prep](week-04.md)
+- [Week 5: Schematics, Star Grounds & KiCad Workflows](week-05.md)
+- [Week 6: The Anatomy of a Hand-Wired Micro Flight Controller](week-06.md)
+- [Week 7: Flying Inside the Terminal: The Host Simulator](week-07.md)
+- [Week 8: Unboxing, Hard Trade-Offs & First Gyro Life](week-08.md)
+- [Week 9: SOT-23 Tweezers, Solder Fumes & 20 kHz Ultrasonic Silence](week-09.md)
+- [Week 10: Breathing Life into the Swarm: Dual-Core FreeRTOS Firmware](week-10.md)

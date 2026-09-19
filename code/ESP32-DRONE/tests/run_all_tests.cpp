@@ -282,6 +282,136 @@ void test_arming_and_failsafe() {
                 "Emergency stop puts supervisor in EMERGENCY_STOP state");
 }
 
+// =============================================================================
+// TEST 7: ESP-NOW Multi-Agent Swarm Protocol & Peer Mesh
+// =============================================================================
+void test_swarm_protocol_and_mesh() {
+    TEST_HEADER("ESP-NOW Multi-Agent Swarm Protocol & Peer Mesh");
+
+    Receiver rx;
+    rx.setNodeId(1); // Set our drone Node ID = 1
+    rx.setRole(SWARM_ROLE_FOLLOWER);
+
+    TEST_ASSERT(rx.getNodeId() == 1, "Drone Node ID initialized to 1");
+    TEST_ASSERT(rx.getRole() == SWARM_ROLE_FOLLOWER, "Drone Swarm Role initialized to FOLLOWER");
+
+    int64_t now_us = 2000000; // 2.0s
+
+    // 1. Test Directed Swarm Control Packet addressed to Node #1
+    SwarmControlPacket cp = {};
+    cp.header.magic[0] = SWARM_MAGIC_0;
+    cp.header.magic[1] = SWARM_MAGIC_1;
+    cp.header.msg_type = SWARM_MSG_CONTROL;
+    cp.header.target_id = 1; // For this drone
+    cp.header.sender_id = SWARM_NODE_GCS;
+    cp.header.sequence = 101;
+    cp.throttle = 550;
+    cp.roll = 50;
+    cp.pitch = -30;
+    cp.yaw = 0;
+    cp.arm = 1;
+    cp.mode = MODE_ANGLE;
+    cp.crc = Receiver::computeCRC((const uint8_t*)&cp, sizeof(cp) - sizeof(uint16_t));
+
+    rx.injectSwarmPacket((const uint8_t*)&cp, sizeof(cp), now_us);
+
+    ReceiverData data;
+    bool ok = rx.update(data, now_us + 10000);
+    TEST_ASSERT(ok, "Directed Swarm Control Packet accepted for matching Node ID");
+    TEST_ASSERT(data.throttle == 550.0f, "Directed packet throttle parsed accurately");
+    TEST_ASSERT(data.arm_command == true, "Directed arm command processed");
+
+    // 2. Test Directed Swarm Control Packet addressed to Node #2 (should be rejected/ignored by Node #1)
+    SwarmControlPacket cp_wrong = cp;
+    cp_wrong.header.target_id = 2; // For drone #2!
+    cp_wrong.header.sequence = 102;
+    cp_wrong.throttle = 999;
+    cp_wrong.crc = Receiver::computeCRC((const uint8_t*)&cp_wrong, sizeof(cp_wrong) - sizeof(uint16_t));
+
+    rx.injectSwarmPacket((const uint8_t*)&cp_wrong, sizeof(cp_wrong), now_us + 20000);
+    rx.update(data, now_us + 25000);
+    TEST_ASSERT(data.throttle == 550.0f, "Packet addressed to Node #2 rejected by Node #1");
+
+    // 3. Test Broadcast Swarm Control Packet (0xFF) (accepted by all nodes)
+    SwarmControlPacket cp_bcast = cp;
+    cp_bcast.header.target_id = SWARM_NODE_BROADCAST;
+    cp_bcast.header.sequence = 103;
+    cp_bcast.throttle = 620;
+    cp_bcast.crc = Receiver::computeCRC((const uint8_t*)&cp_bcast, sizeof(cp_bcast) - sizeof(uint16_t));
+
+    rx.injectSwarmPacket((const uint8_t*)&cp_bcast, sizeof(cp_bcast), now_us + 30000);
+    rx.update(data, now_us + 35000);
+    TEST_ASSERT(data.throttle == 620.0f, "Broadcast packet (0xFF) accepted by Node #1");
+
+    // 4. Test Corrupted Swarm CRC
+    SwarmControlPacket cp_bad = cp;
+    cp_bad.header.sequence = 104;
+    cp_bad.throttle = 800;
+    cp_bad.crc = 0xDEAD; // Invalid CRC
+    rx.injectSwarmPacket((const uint8_t*)&cp_bad, sizeof(cp_bad), now_us + 40000);
+    rx.update(data, now_us + 45000);
+    TEST_ASSERT(data.throttle == 620.0f, "Corrupted Swarm Packet rejected by CRC check");
+
+    // 5. Test Swarm Heartbeat & Peer Discovery
+    TEST_ASSERT(rx.getPeerTable().getActivePeerCount() == 0, "Initial peer table empty");
+
+    SwarmHeartbeatPacket hb = {};
+    hb.header.magic[0] = SWARM_MAGIC_0;
+    hb.header.magic[1] = SWARM_MAGIC_1;
+    hb.header.msg_type = SWARM_MSG_HEARTBEAT;
+    hb.header.target_id = SWARM_NODE_BROADCAST;
+    hb.header.sender_id = 5; // Neighbor drone #5
+    hb.header.sequence = 1;
+    hb.role = SWARM_ROLE_LEADER;
+    hb.state = STATE_FLIGHT;
+    hb.battery_mv = 3920;
+    hb.battery_pct = 85;
+    hb.roll_deg_x10 = 125; // 12.5 deg
+    hb.pitch_deg_x10 = -84; // -8.4 deg
+    hb.yaw_rate_dps_x10 = 15;
+    hb.armed = 1;
+    hb.uptime_s = 42;
+    hb.crc = Receiver::computeCRC((const uint8_t*)&hb, sizeof(hb) - sizeof(uint16_t));
+
+    rx.injectSwarmPacket((const uint8_t*)&hb, sizeof(hb), now_us + 50000);
+
+    TEST_ASSERT(rx.getPeerTable().getActivePeerCount() == 1, "Peer Node #5 registered in peer table");
+    const SwarmPeer *peer = rx.getPeerTable().findPeer(5);
+    TEST_ASSERT(peer != nullptr, "Found Peer #5 in table");
+    if (peer) {
+        TEST_ASSERT(peer->role == SWARM_ROLE_LEADER, "Peer #5 role recorded as LEADER");
+        TEST_ASSERT(peer->state == STATE_FLIGHT, "Peer #5 state recorded as FLIGHT");
+        TEST_ASSERT(peer->battery_mv == 3920, "Peer #5 battery voltage recorded as 3920 mV");
+        TEST_ASSERT(fabsf(peer->roll_deg - 12.5f) < 0.05f, "Peer #5 roll recorded as +12.5 deg");
+        TEST_ASSERT(peer->armed == true, "Peer #5 armed state recorded as true");
+    }
+
+    // 6. Test Stale Peer Expiration
+    rx.getPeerTable().cleanupStalePeers(now_us + 50000 + 4000000LL, (int64_t)SWARM_PEER_TIMEOUT_MS * 1000LL);
+    TEST_ASSERT(rx.getPeerTable().getActivePeerCount() == 0, "Stale peer purged after timeout");
+
+    // 7. Test Swarm Mission Command: Emergency Stop
+    SwarmCommandPacket cmd = {};
+    cmd.header.magic[0] = SWARM_MAGIC_0;
+    cmd.header.magic[1] = SWARM_MAGIC_1;
+    cmd.header.msg_type = SWARM_MSG_COMMAND;
+    cmd.header.target_id = SWARM_NODE_BROADCAST;
+    cmd.header.sender_id = SWARM_NODE_GCS;
+    cmd.header.sequence = 200;
+    cmd.cmd_id = CMD_SWARM_EMERGENCY_STOP;
+    cmd.crc = Receiver::computeCRC((const uint8_t*)&cmd, sizeof(cmd) - sizeof(uint16_t));
+
+    rx.injectSwarmPacket((const uint8_t*)&cmd, sizeof(cmd), now_us + 60000);
+
+    SwarmCommandId pending_cmd = CMD_SWARM_NONE;
+    bool has_cmd = rx.hasPendingSwarmCommand(pending_cmd);
+    TEST_ASSERT(has_cmd, "Pending swarm command available");
+    TEST_ASSERT(pending_cmd == CMD_SWARM_EMERGENCY_STOP, "Command ID matches CMD_SWARM_EMERGENCY_STOP");
+
+    rx.update(data, now_us + 65000);
+    TEST_ASSERT(data.emergency_stop == true, "Emergency stop flag asserted in receiver data");
+}
+
 int main() {
     printf("========================================================\n");
     printf("  ESP32-DRONE AUTOMATED HOST UNIT TEST SUITE\n");
@@ -293,6 +423,7 @@ int main() {
     test_receiver_and_packets();
     test_battery_monitor();
     test_arming_and_failsafe();
+    test_swarm_protocol_and_mesh();
 
     printf("\n========================================================\n");
     printf("  TEST RESULTS: %d PASSED, %d FAILED\n", g_tests_passed, g_tests_failed);

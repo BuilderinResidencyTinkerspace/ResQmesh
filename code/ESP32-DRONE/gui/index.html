@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AeroCommand // ESP32-S3 Quadcopter Ground Control Station</title>
-  <meta name="description" content="Ultra-clean Web Serial Ground Control Station for Seeed Studio XIAO ESP32-S3 Quadcopter Flight Controller with real-time 3D attitude visualizer, live sensor oscilloscope, and motor telemetry.">
+  <title>AeroCommand // Bento Swarm Ground Control Station</title>
+  <meta name="description" content="Ultra-modern Bento-style Aerospace Ground Control Station for Seeed Studio XIAO ESP32-S3 Drone Swarms. 3D Attitude Horizon, MPU-9250 Oscilloscope, Quad-X Motors, and Tactical Radar.">
   
   <!-- Modern Aerospace Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,10 +16,10 @@
   
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="view-dual">
 
   <!-- =========================================================================
-       Header Bar: Minimalist Cockpit Navigation
+       Header Bar: Cockpit Navigation & View Mode Switcher
        ========================================================================= -->
   <header class="header-bar">
     <div class="brand-section">
@@ -30,31 +30,33 @@
       </div>
       <div>
         <div class="brand-title">AeroCommand GCS</div>
-        <div class="brand-subtitle">ESP32-S3 CORELESS FC TELEMETRY</div>
+        <div class="brand-subtitle">ESP32-S3 SWARM MISSION COMMAND</div>
       </div>
     </div>
 
-    <!-- Live Telemetry Status Pills -->
-    <div class="telemetry-status-group">
-      <div class="nav-pill">
-        <span class="pulse-dot" id="system-status-dot"></span>
-        <span id="system-state-label">DISCONNECTED</span>
-      </div>
-
-      <div class="nav-pill">
-        <span style="color: var(--text-muted);">LOOP</span>
-        <span id="loop-freq-label" style="color: var(--accent-emerald); font-weight: 700;">--- Hz</span>
-      </div>
-
-      <div class="nav-pill">
-        <span style="color: var(--text-muted);">BATT</span>
-        <span id="battery-label" style="color: var(--accent-cyan); font-weight: 700;">--.- V (--%)</span>
-      </div>
+    <!-- Aerospace View Mode Selector (Segmented Switcher) -->
+    <div class="view-mode-selector">
+      <button id="btn-view-cockpit" class="view-btn" data-view="cockpit" title="Focus on single drone 3D attitude, oscilloscope & motor matrix">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        Cockpit PFD
+      </button>
+      <button id="btn-view-dual" class="view-btn active" data-view="dual" title="Bento Grid Dual View: Simultaneous Cockpit & Tactical Swarm Radar">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v18H3V3zm10 0h8v18h-8V3z"/></svg>
+        Dual View
+      </button>
+      <button id="btn-view-radar" class="view-btn" data-view="radar" title="Full tactical 2D airspace radar scope & swarm fleet matrix">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm1-13h-2v4.58L14.7 15l1.42-1.42L13 10.58V7z"/></svg>
+        Tactical Radar
+      </button>
     </div>
 
     <!-- Header Actions -->
     <div class="header-actions">
-      <button id="demo-mode-btn" class="btn btn-subtle" title="Simulate real-time flight dynamics without drone hardware">
+      <a href="mobile.html" target="_blank" class="btn btn-subtle" style="text-decoration: none; display: inline-flex; align-items: center;" title="Open Mobile Touch Controller">
+        Mobile UI
+      </a>
+
+      <button id="demo-mode-btn" class="btn btn-subtle" title="Simulate real-time flight dynamics & multi-drone swarm formation">
         Demo Physics
       </button>
 
@@ -72,24 +74,88 @@
   </header>
 
   <!-- =========================================================================
-       Dashboard Grid: Clean 2-Column Cockpit Layout
+       Workspace Container: Bento Grid Layout
        ========================================================================= -->
-  <main class="cockpit-grid">
+  <main id="workspace-container" class="workspace-container">
 
-    <!-- LEFT COLUMN: Primary Flight Display & Telemetry Waveforms -->
-    <div class="col-left">
+    <!-- =======================================================================
+         BENTO STATS STRIP (Top 4 Micro-Bento Tiles)
+         ======================================================================= -->
+    <section class="bento-stat-strip">
+      <!-- Stat 1: Safety & Flight State -->
+      <div class="bento-card bento-stat-card">
+        <div class="bento-stat-icon" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.25);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 4.2L19.3 19H4.7L12 6.2z"/></svg>
+        </div>
+        <div class="bento-stat-body">
+          <div class="bento-stat-label">Flight Controller State</div>
+          <div class="bento-stat-value-row">
+            <span class="pulse-dot" id="system-status-dot"></span>
+            <span id="system-state-label" class="bento-stat-value">DISCONNECTED</span>
+          </div>
+          <div class="bento-stat-sub">7-Gate Safety Supervisor</div>
+        </div>
+      </div>
 
-      <!-- Panel 1: 3D Attitude Horizon -->
-      <section class="glass-panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-            3D Attitude Horizon & Flight Pose
+      <!-- Stat 2: LiPo Power & Energy -->
+      <div class="bento-card bento-stat-card">
+        <div class="bento-stat-icon" style="background: rgba(56, 189, 248, 0.12); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.25);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/></svg>
+        </div>
+        <div class="bento-stat-body">
+          <div class="bento-stat-label">LiPo Power Delivery</div>
+          <div id="battery-label" class="bento-stat-value" style="color: var(--accent-cyan);">--.- V (--%)</div>
+          <div class="bento-stat-sub">1S LiPo Cell // 3.20V Cutoff</div>
+        </div>
+      </div>
+
+      <!-- Stat 3: 500 Hz RTOS Core Rate -->
+      <div class="bento-card bento-stat-card">
+        <div class="bento-stat-icon" style="background: rgba(245, 158, 11, 0.12); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.25);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+        </div>
+        <div class="bento-stat-body">
+          <div class="bento-stat-label">Dual-Core RTOS Loop</div>
+          <div id="loop-freq-label" class="bento-stat-value" style="color: var(--accent-emerald);">--- Hz</div>
+          <div class="bento-stat-sub">Core 0 (RF) // Core 1 (PID 500Hz)</div>
+        </div>
+      </div>
+
+      <!-- Stat 4: ESP-NOW Swarm Airspace -->
+      <div class="bento-card bento-stat-card">
+        <div class="bento-stat-icon" style="background: rgba(139, 92, 246, 0.12); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.25);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        </div>
+        <div class="bento-stat-body">
+          <div class="bento-stat-label">ESP-NOW Swarm Airspace</div>
+          <div id="bento-peer-stat" class="bento-stat-value" style="color: #a78bfa;">0 Peers Active</div>
+          <div class="bento-stat-sub">Channel 1 // 10 Hz Mesh Broadcast</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================================
+         MASTER BENTO GRID MODULES
+         ======================================================================= -->
+    <div class="bento-grid">
+
+      <!-- ===================================================================
+           COCKPIT MODULES
+           =================================================================== -->
+
+      <!-- Bento Card 1: 3D Attitude Horizon & Flight Pose (Hero Card - 7 cols) -->
+      <section class="bento-card bento-span-7 bento-cockpit-module" id="bento-attitude-card">
+        <div class="bento-header">
+          <div class="bento-title-group">
+            <div class="bento-icon-badge">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">3D Attitude Horizon & Flight Pose</div>
+              <div class="bento-subtitle">Real-time Euler Angles // Complementary Filter (α=0.98)</div>
+            </div>
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <span class="chip">COMPLEMENTARY (α=0.98)</span>
-            <button id="reset-cam-btn" class="btn btn-subtle" style="padding: 4px 10px; font-size: 0.72rem;">Center View</button>
-          </div>
+          <button id="reset-cam-btn" class="btn btn-subtle" style="padding: 4px 12px; font-size: 0.72rem;">Center View</button>
         </div>
 
         <div class="attitude-viewport-wrapper">
@@ -115,50 +181,17 @@
         </div>
       </section>
 
-      <!-- Panel 2: Live Sensor Oscilloscope -->
-      <section class="glass-panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
-            Live Sensor Oscilloscope (MPU-9250)
-          </div>
-          <div class="segmented-tabs">
-            <button id="tab-accel" class="seg-btn active">Accel (g)</button>
-            <button id="tab-gyro" class="seg-btn">Gyro (°/s)</button>
-          </div>
-        </div>
-
-        <div class="scope-container">
-          <canvas id="oscilloscope-canvas"></canvas>
-        </div>
-
-        <div class="scope-legend">
-          <div class="legend-channel">
-            <span class="channel-dot dot-x"></span>
-            <span>X: <strong id="val-x" style="color: #f43f5e;">+0.000</strong></span>
-          </div>
-          <div class="legend-channel">
-            <span class="channel-dot dot-y"></span>
-            <span>Y: <strong id="val-y" style="color: #10b981;">+0.000</strong></span>
-          </div>
-          <div class="legend-channel">
-            <span class="channel-dot dot-z"></span>
-            <span>Z: <strong id="val-z" style="color: #38bdf8;">+1.000</strong></span>
-          </div>
-        </div>
-      </section>
-
-    </div>
-
-    <!-- RIGHT COLUMN: Propulsion Matrix, Controls, and Serial Console -->
-    <div class="col-right">
-
-      <!-- Panel 3: Quad-X Interactive Propulsion Cross -->
-      <section class="glass-panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            <svg viewBox="0 0 24 24"><path d="M12 3v9.28a4.39 4.39 0 0 0-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/></svg>
-            Quad-X Propulsion Matrix
+      <!-- Bento Card 2: Quad-X Propulsion Matrix (5 cols) -->
+      <section class="bento-card bento-span-5 bento-cockpit-module" id="bento-propulsion-card">
+        <div class="bento-header">
+          <div class="bento-title-group">
+            <div class="bento-icon-badge" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.25);">
+              <svg viewBox="0 0 24 24"><path d="M12 3v9.28a4.39 4.39 0 0 0-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Quad-X Propulsion Matrix</div>
+              <div class="bento-subtitle">20 kHz Coreless PWM Mixer</div>
+            </div>
           </div>
           <span class="chip" id="sat-badge">PWM: NORMAL</span>
         </div>
@@ -244,66 +277,325 @@
         </div>
       </section>
 
-      <!-- Panel 4: Hardware Controls & Diagnostics Dock -->
-      <section class="glass-panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            <svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
-            Flight Control & Diagnostics
+      <!-- ===================================================================
+           TACTICAL SWARM RADAR MODULES
+           =================================================================== -->
+
+      <!-- Bento Card 3: Tactical Airspace Radar Scope (Hero Card - 7 cols) -->
+      <section class="bento-card bento-span-7 bento-radar-module" id="bento-radar-card">
+        <div class="bento-header">
+          <div class="bento-title-group">
+            <div class="bento-icon-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.3);">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm1-13h-2v4.58L14.7 15l1.42-1.42L13 10.58V7z"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Tactical Airspace Radar & Mesh Scope</div>
+              <div class="bento-subtitle">2.4 GHz ESP-NOW Polar Airspace Geometry</div>
+            </div>
+          </div>
+          <div class="radar-toolbar-right">
+            <div class="radar-range-group">
+              <span style="font-size: 0.68rem; color: var(--text-muted); font-family: var(--font-mono);">RANGE:</span>
+              <button class="seg-btn-radar" data-range="5">5m</button>
+              <button class="seg-btn-radar active" data-range="10">10m</button>
+              <button class="seg-btn-radar" data-range="25">25m</button>
+            </div>
           </div>
         </div>
 
-        <div class="controls-row">
-          <button id="btn-calibrate" class="btn btn-subtle" style="flex: 1;">
-            Calibrate IMU
-          </button>
-          <button id="btn-arm-toggle" class="btn btn-subtle" style="flex: 1;">
-            Arm Drone
-          </button>
-          <button id="btn-disarm" class="btn btn-subtle" style="flex: 1;">
-            Disarm
-          </button>
-        </div>
-
-        <!-- Safe Bench Motor Test -->
-        <div class="sub-box">
-          <div class="sub-box-title">Bench Motor Pulse (Props Off Only!)</div>
-          <div class="inline-controls">
-            <select id="motor-select" class="select-clean">
-              <option value="1">M1 (FL - GPIO4)</option>
-              <option value="2">M2 (FR - GPIO1)</option>
-              <option value="3">M3 (RR - GPIO2)</option>
-              <option value="4">M4 (RL - GPIO3)</option>
-            </select>
-            <input type="range" id="motor-test-slider" class="slider-clean" min="1" max="15" value="5">
-            <span id="motor-test-val" class="slider-readout">5%</span>
-            <button id="btn-pulse-motor" class="btn btn-subtle" style="padding: 5px 12px;">Pulse</button>
+        <!-- Formation Preset Bar -->
+        <div class="formation-bar">
+          <span class="formation-label">FORMATION PRESET:</span>
+          <div class="formation-pill-group">
+            <button class="formation-pill active" data-formation="v_formation">V-Formation</button>
+            <button class="formation-pill" data-formation="diamond">Diamond</button>
+            <button class="formation-pill" data-formation="line">Line Abreast</button>
+            <button class="formation-pill" data-formation="circle">Circular Mesh</button>
+            <button class="formation-pill" data-formation="free">Free Mesh</button>
           </div>
         </div>
 
-        <!-- Attitude Simulation Injector -->
-        <div class="sub-box">
-          <div class="sub-box-title">Attitude Simulation Injector</div>
-          <div class="inline-controls">
-            <span style="font-size: 0.72rem; color: var(--text-muted);">Roll:</span>
-            <input type="range" id="sim-roll-slider" class="slider-clean" min="-30" max="30" value="0">
-            <span id="sim-roll-val" class="slider-readout">0°</span>
+        <!-- 2D Canvas Radar Scope Container -->
+        <div class="radar-viewport-container">
+          <canvas id="swarm-radar-canvas" width="640" height="540"></canvas>
 
-            <span style="font-size: 0.72rem; color: var(--text-muted); margin-left: 6px;">Pitch:</span>
-            <input type="range" id="sim-pitch-slider" class="slider-clean" min="-30" max="30" value="0">
-            <span id="sim-pitch-val" class="slider-readout">0°</span>
+          <!-- Digital Radar HUD Overlay -->
+          <div class="radar-hud-overlay top-left">
+            <div class="radar-hud-tag">AIRSPACE MONITOR</div>
+            <div class="radar-hud-metric"><span id="radar-active-nodes-num">1</span> ACTIVE / <span id="radar-armed-nodes-num">0</span> ARMED</div>
+          </div>
 
-            <button id="btn-inject-sim" class="btn btn-subtle" style="padding: 5px 12px;">Inject</button>
+          <div class="radar-hud-overlay top-right">
+            <div class="radar-hud-tag">RF PROTOCOL</div>
+            <div class="radar-hud-metric">ESP-NOW CH 1 // 2.4 GHz</div>
+          </div>
+
+          <div class="radar-hud-overlay bottom-left">
+            <div class="radar-hud-tag">INSPECT TARGET</div>
+            <div id="radar-inspect-node" class="radar-hud-metric" style="color: var(--accent-cyan);">CENTER: NODE #1 (LOCAL)</div>
+          </div>
+
+          <div class="radar-hud-overlay bottom-right">
+            <div class="radar-hud-tag">SWEEP BEAM</div>
+            <div class="radar-hud-metric" style="color: var(--accent-emerald);">ACTIVE (10 Hz PING)</div>
+          </div>
+        </div>
+
+        <!-- Quick Airspace Stats Footer -->
+        <div class="radar-stats-footer">
+          <div class="radar-stat-item">
+            <span class="radar-stat-lbl">DECENTRALIZED PEERS</span>
+            <span id="footer-peer-count" class="radar-stat-val">0 Nodes</span>
+          </div>
+          <div class="radar-stat-item">
+            <span class="radar-stat-lbl">CURRENT ROLE</span>
+            <span id="footer-local-role" class="radar-stat-val" style="color: var(--accent-cyan);">FOLLOWER</span>
+          </div>
+          <div class="radar-stat-item">
+            <span class="radar-stat-lbl">MESH LINK HEALTH</span>
+            <span id="footer-mesh-health" class="radar-stat-val" style="color: var(--accent-emerald);">100% OK</span>
+          </div>
+          <div class="radar-stat-item">
+            <span class="radar-stat-lbl">SAFETY WATCHDOG</span>
+            <span class="radar-stat-val" style="color: var(--accent-amber);">300ms FAILSAFE</span>
           </div>
         </div>
       </section>
 
-      <!-- Panel 5: Serial Terminal -->
-      <section class="glass-panel" style="flex: 1;">
-        <div class="panel-header">
-          <div class="panel-title">
-            <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v9z"/></svg>
-            Serial Console
+      <!-- Bento Card 4: Swarm Mission Broadcast Deck & Identity (5 cols) -->
+      <section class="bento-card bento-span-5 bento-radar-module" id="bento-swarm-cmd-card">
+        <div class="bento-header">
+          <div class="bento-title-group">
+            <div class="bento-icon-badge" style="background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); border-color: rgba(56, 189, 248, 0.3);">
+              <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Swarm Mission Broadcast Deck</div>
+              <div class="bento-subtitle">Decentralized RF Command Center</div>
+            </div>
+          </div>
+          <span class="chip" id="swarm-peers-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald);">0 PEERS DETECTED</span>
+        </div>
+
+        <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 14px;">
+          <!-- Target Selection -->
+          <div class="sub-box">
+            <div class="sub-box-title">Broadcast Target Address</div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="swarm-target-select" class="select-clean" style="flex: 1; font-size: 0.78rem;">
+                <option value="255">All Swarm Drones (Broadcast 0xFF)</option>
+                <option value="1">Local Drone (Node #1)</option>
+              </select>
+              <span class="chip" style="font-family: var(--font-mono); font-size: 0.7rem;">CH 1</span>
+            </div>
+          </div>
+
+          <!-- Swarm Action Buttons -->
+          <div class="sub-box">
+            <div class="sub-box-title">Swarm Coordinated Commands</div>
+            <div class="controls-row" style="margin-bottom: 8px;">
+              <button id="btn-swarm-arm" class="btn btn-subtle" style="flex: 1; border-color: rgba(16, 185, 129, 0.4); color: var(--accent-emerald); font-weight: 700;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 4.2L19.3 19H4.7L12 6.2z"/></svg>
+                Arm Swarm
+              </button>
+              <button id="btn-swarm-disarm" class="btn btn-subtle" style="flex: 1;">
+                Disarm Swarm
+              </button>
+            </div>
+
+            <div class="controls-row" style="margin-bottom: 8px;">
+              <button id="btn-swarm-calib" class="btn btn-subtle" style="flex: 1;">
+                Calibrate All
+              </button>
+              <button id="btn-swarm-takeoff" class="btn btn-subtle" style="flex: 1; border-color: rgba(56, 189, 248, 0.35); color: var(--accent-cyan);">
+                Sync Takeoff
+              </button>
+            </div>
+
+            <button id="btn-swarm-kill" class="btn btn-kill" style="width: 100%; padding: 10px; font-weight: 700; font-size: 0.82rem; letter-spacing: 0.5px;">
+              EMERGENCY STOP ENTIRE SWARM
+            </button>
+          </div>
+
+          <!-- Node Identity & Role Config -->
+          <div class="sub-box" style="margin-bottom: 0;">
+            <div class="sub-box-title">Local Hardware Identity & Role</div>
+            <div class="inline-controls" style="flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Node ID:</span>
+                <input type="number" id="swarm-node-id-input" class="input-clean" min="1" max="254" value="1" style="width: 52px; text-align: center;">
+                <button id="btn-set-node-id" class="btn btn-subtle" style="padding: 4px 10px; font-size: 0.72rem;">Set</button>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Role:</span>
+                <select id="swarm-role-select" class="select-clean" style="padding: 4px 8px; font-size: 0.75rem;">
+                  <option value="follower">Follower</option>
+                  <option value="leader">Leader</option>
+                  <option value="standalone">Standalone</option>
+                </select>
+                <button id="btn-set-role" class="btn btn-subtle" style="padding: 4px 10px; font-size: 0.72rem;">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           SUPPORTING BENTO MODULES
+           =================================================================== -->
+
+      <!-- Bento Card 5: Live Sensor Oscilloscope (MPU-9250) (6 cols) -->
+      <section class="bento-card bento-span-6 bento-cockpit-module" id="bento-oscilloscope-card">
+        <div class="bento-header">
+          <div class="bento-title-group">
+            <div class="bento-icon-badge" style="background: rgba(244, 63, 94, 0.12); color: var(--accent-rose); border-color: rgba(244, 63, 94, 0.25);">
+              <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Live Sensor Oscilloscope</div>
+              <div class="bento-subtitle">MPU-9250 400kHz I2C Waveforms</div>
+            </div>
+          </div>
+          <div class="segmented-tabs">
+            <button id="tab-accel" class="seg-btn active">Accel (g)</button>
+            <button id="tab-gyro" class="seg-btn">Gyro (°/s)</button>
+          </div>
+        </div>
+
+        <div class="scope-container">
+          <canvas id="oscilloscope-canvas"></canvas>
+        </div>
+
+        <div class="scope-legend">
+          <div class="legend-channel">
+            <span class="channel-dot dot-x"></span>
+            <span>X: <strong id="val-x" style="color: #f43f5e;">+0.000</strong></span>
+          </div>
+          <div class="legend-channel">
+            <span class="channel-dot dot-y"></span>
+            <span>Y: <strong id="val-y" style="color: #10b981;">+0.000</strong></span>
+          </div>
+          <div class="legend-channel">
+            <span class="channel-dot dot-z"></span>
+            <span>Z: <strong id="val-z" style="color: #38bdf8;">+1.000</strong></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bento Card 6: Flight Control & Bench Diagnostics (6 cols) -->
+      <section class="bento-card bento-span-6 bento-cockpit-module" id="bento-diagnostics-card">
+        <div class="bento-header">
+          <div class="bento-title-group">
+            <div class="bento-icon-badge" style="background: rgba(245, 158, 11, 0.12); color: var(--accent-amber); border-color: rgba(245, 158, 11, 0.25);">
+              <svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Flight Control & Bench Diagnostics</div>
+              <div class="bento-subtitle">IMU Zero Calibration & Safe Bench Testing</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 14px;">
+          <div class="controls-row">
+            <button id="btn-calibrate" class="btn btn-subtle" style="flex: 1;">
+              Calibrate IMU
+            </button>
+            <button id="btn-arm-toggle" class="btn btn-subtle" style="flex: 1;">
+              Arm Drone
+            </button>
+            <button id="btn-disarm" class="btn btn-subtle" style="flex: 1;">
+              Disarm
+            </button>
+          </div>
+
+          <!-- Safe Bench Motor Test -->
+          <div class="sub-box">
+            <div class="sub-box-title">Bench Motor Pulse (Props Off Only!)</div>
+            <div class="inline-controls">
+              <select id="motor-select" class="select-clean">
+                <option value="1">M1 (FL - GPIO4)</option>
+                <option value="2">M2 (FR - GPIO1)</option>
+                <option value="3">M3 (RR - GPIO2)</option>
+                <option value="4">M4 (RL - GPIO3)</option>
+              </select>
+              <input type="range" id="motor-test-slider" class="slider-clean" min="1" max="15" value="5">
+              <span id="motor-test-val" class="slider-readout">5%</span>
+              <button id="btn-pulse-motor" class="btn btn-subtle" style="padding: 5px 12px;">Pulse</button>
+            </div>
+          </div>
+
+          <!-- Attitude Simulation Injector -->
+          <div class="sub-box" style="margin-bottom: 0;">
+            <div class="sub-box-title">Attitude Simulation Injector</div>
+            <div class="inline-controls">
+              <span style="font-size: 0.72rem; color: var(--text-muted);">Roll:</span>
+              <input type="range" id="sim-roll-slider" class="slider-clean" min="-30" max="30" value="0">
+              <span id="sim-roll-val" class="slider-readout">0°</span>
+
+              <span style="font-size: 0.72rem; color: var(--text-muted); margin-left: 6px;">Pitch:</span>
+              <input type="range" id="sim-pitch-slider" class="slider-clean" min="-30" max="30" value="0">
+              <span id="sim-pitch-val" class="slider-readout">0°</span>
+
+              <button id="btn-inject-sim" class="btn btn-subtle" style="padding: 5px 12px;">Inject</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bento Card 7: Airspace Fleet Telemetry Matrix (6 cols) -->
+      <section class="bento-card bento-span-6 bento-radar-module" id="bento-fleet-matrix-card">
+        <div class="bento-header">
+          <div class="bento-title-group">
+            <div class="bento-icon-badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border-color: rgba(168, 85, 247, 0.3);">
+              <svg viewBox="0 0 24 24"><path d="M16.5 13c-1.2 0-3.07.34-4.5 1-1.43-.66-3.3-1-4.5-1C5.13 13 1 14.13 1 16.5V19h22v-2.5c0-2.37-4.13-3.5-6.5-3.5zm-9-2a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm9 0a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Airspace Fleet Telemetry Matrix</div>
+              <div class="bento-subtitle">Decentralized Peer Telemetry & Battery Gauges</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; flex: 1;">
+          <div id="swarm-fleet-grid" class="swarm-fleet-grid">
+            <div class="swarm-empty-placeholder" id="swarm-empty-state">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" style="opacity: 0.35; margin-bottom: 6px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+              <div>Listening for ESP-NOW 10 Hz Swarm Heartbeats on Channel 1...</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Neighboring drones will appear in real-time as soon as they power up.</div>
+            </div>
+          </div>
+
+          <!-- Inspected Node Detail Box -->
+          <div id="node-inspector-box" class="sub-box" style="margin-top: 0; margin-bottom: 0; display: none;">
+            <div class="sub-box-title" style="display: flex; justify-content: space-between;">
+              <span>Drone Telemetry Inspector: <strong id="insp-node-title" style="color: var(--accent-cyan);">Node #2</strong></span>
+              <span id="insp-close-btn" style="cursor: pointer; color: var(--text-muted);">✕ Close</span>
+            </div>
+            <div class="inspector-stats-grid">
+              <div class="insp-stat-item"><span>ROLE</span><strong id="insp-role">FOLLOWER</strong></div>
+              <div class="insp-stat-item"><span>STATE</span><strong id="insp-state">FLIGHT</strong></div>
+              <div class="insp-stat-item"><span>BATTERY</span><strong id="insp-batt">3.88V (82%)</strong></div>
+              <div class="insp-stat-item"><span>ATTITUDE</span><strong id="insp-att">R: +1.2° P: -0.8°</strong></div>
+              <div class="insp-stat-item"><span>DISTANCE</span><strong id="insp-dist">4.2 m</strong></div>
+              <div class="insp-stat-item"><span>BEARING</span><strong id="insp-bearing">045° NE</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bento Card 8: Serial Console Terminal (6 cols) -->
+      <section class="bento-card bento-span-6" id="bento-terminal-card">
+        <div class="bento-header">
+          <div class="bento-title-group">
+            <div class="bento-icon-badge" style="background: rgba(56, 189, 248, 0.12); color: var(--accent-cyan); border-color: rgba(56, 189, 248, 0.25);">
+              <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v9z"/></svg>
+            </div>
+            <div>
+              <div class="bento-title">Serial Console Terminal</div>
+              <div class="bento-subtitle">USB CDC 115200 Baud Direct Link</div>
+            </div>
           </div>
           <div style="display: flex; gap: 10px; align-items: center;">
             <label style="font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; cursor: pointer;">
@@ -313,14 +605,16 @@
           </div>
         </div>
 
-        <div class="console-box" id="terminal-output">
-          <div class="log-line info">AeroCommand GCS initialized. Ready for serial connection on COM10.</div>
-        </div>
+        <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; flex: 1;">
+          <div class="console-box" id="terminal-output">
+            <div class="log-line info">AeroCommand GCS initialized. Ready for serial connection (select COM port above).</div>
+          </div>
 
-        <form id="terminal-form" class="console-input-row">
-          <input type="text" id="terminal-input" class="console-input" placeholder="Enter CLI command (e.g. status, imu, attitude, help)..." autocomplete="off">
-          <button type="submit" class="btn btn-subtle">Send</button>
-        </form>
+          <form id="terminal-form" class="console-input-row">
+            <input type="text" id="terminal-input" class="console-input" placeholder="Enter CLI command (e.g. status, swarm, node 1, help)..." autocomplete="off">
+            <button type="submit" class="btn btn-subtle">Send</button>
+          </form>
+        </div>
       </section>
 
     </div>
@@ -330,8 +624,8 @@
        Footer Status Bar
        ========================================================================= -->
   <footer class="footer-bar">
-    <span>ESP32-S3 CORELESS FC // 500Hz DUAL-CORE RTOS // NATIVE USB CDC</span>
-    <span>WEB SERIAL DIRECT // NO EXTERNAL SERVER NEEDED</span>
+    <span>ESP32-S3 CORELESS FC // 500Hz DUAL-CORE RTOS // ESP-NOW DECENTRALIZED MESH</span>
+    <span>WEB SERIAL DIRECT GCS // NO EXTERNAL ROUTER NEEDED</span>
   </footer>
 
   <script src="app.js"></script>

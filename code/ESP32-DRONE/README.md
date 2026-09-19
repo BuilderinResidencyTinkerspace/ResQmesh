@@ -244,6 +244,16 @@ Connect to the USB-C serial port at **115200 baud**. Type any command:
 
 ## 8. Build, Flash, and Testing Instructions
 
+### 1-Click Automated Windows Flasher (Arduino CLI)
+The project includes a flasher script that auto-detects your connected XIAO ESP32-S3 port and prompts for confirmation:
+```cmd
+# Auto-detects port or prompts to select:
+.\code\ESP32-DRONE\flash_drone.bat
+
+# Or explicitly specify your COM port:
+.\code\ESP32-DRONE\flash_drone.bat COM14
+```
+
 ### ESP-IDF CLI Build
 ```bash
 cd code/ESP32-DRONE
