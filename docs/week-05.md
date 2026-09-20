@@ -3,6 +3,7 @@
 Before you connect four brushed DC motors capable of pulling 8 Amps of combined burst current to a delicate 3.3V microcontroller, you’d better have your electrical paths figured out down to the millimeter. 
 
 This week, we booted up KiCad to design the complete electrical schematic for ResQmesh. The goal wasn’t to send a board out to a commercial PCB fab—custom fab turnaround takes weeks and adds tooling fees that would violate our sub-₹3,000 budget. Instead, we used KiCad to design a bulletproof schematic and map out an exact point-to-point perfboard wiring layout that we could hand-solder directly onto the drone frame.
+<img width="1000" height="750" alt="WhatsApp Image 2026-09-20 at 12 00 20 AM" src="https://github.com/user-attachments/assets/c5e7e99f-8b7d-48bf-8f1f-e9119b8f5973" />
 
 ---
 
