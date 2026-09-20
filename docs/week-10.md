@@ -52,9 +52,6 @@ On Core 1, our flight loop runs strictly every **2,000 microseconds** ($2.0\text
 We measured our total loop execution time on an oscilloscope GPIO toggle: **$420\ \mu\text{s}$ out of our $2000\ \mu\text{s}$ budget.** That leaves over **75% idle CPU headroom** on Core 1!
 
 
-https://github.com/user-attachments/assets/192217be-4b09-4d5e-ab29-f6806a64a93f
-
-
 ---
 
 ## Swarm Comms & The 200 ms Dead-Man Switch (Core 0)
@@ -82,6 +79,10 @@ Pitch Nose Down by Hand:  [ Front Motors Spool Up! Rear Motors Cut Back! ]
 Roll Left Wing by Hand:   [ Left Motors Surge! Right Motors Back Off! ]
 Release to Neutral:       [ All Four Motors Settle into Smooth Equilibrium ]
 ```
+
+https://github.com/user-attachments/assets/9f020abd-1319-4267-80d9-c85300ebb805
+
+
 
 Ten weeks of late nights, broken prints, courier delays, schematic revisions, and microscopic soldering had brought us to this moment. The hardware works, the electrical design is $>98\%$ efficient, the flight loop is rock-solid at 500 Hz, and the entire drone weighs **32.2 grams** on a total build cost of **₹2,224**.
 
