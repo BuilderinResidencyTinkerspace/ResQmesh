@@ -7,6 +7,7 @@ We wanted to flip that script completely. What if a swarm wasn't made of preciou
 That was the core question that kicked off **ResQmesh**.
 
 ---
+<img width="960" height="1280" alt="WhatsApp Image 2026-09-19 at 11 42 30 PM" src="https://github.com/user-attachments/assets/3206a464-4197-430f-825d-b110302b2c47" />
 
 ## Setting an Impossible Constraint
 
