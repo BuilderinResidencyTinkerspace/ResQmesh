@@ -30,7 +30,7 @@ This was the breakthrough. We abandoned round ducts and went for an open Quad-X 
 
 ---
 <img width="400" height="600" alt="WhatsApp Image 2026-09-19 at 11 42 30 PM" src="https://github.com/user-attachments/assets/5a3657c1-ced0-45d3-8f94-5abad89dd749" />
-<img width="300" height="400" alt="20260916_021621" src="https://github.com/user-attachments/assets/761e9683-b6a5-4a8e-8a1a-a44046a0aaf1" />
+<img width="600" height="800" alt="20260916_021621" src="https://github.com/user-attachments/assets/761e9683-b6a5-4a8e-8a1a-a44046a0aaf1" />
 <img width="400" height="300" alt="20260916_021632" src="https://github.com/user-attachments/assets/98fb2ff3-23ee-41f2-af6d-0e9d63f835d3" />
 
 
