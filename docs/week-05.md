@@ -37,6 +37,9 @@ To kill this problem before it killed our hardware, our KiCad schematic incorpor
 1. **1N5819 Schottky Flyback Diodes:** Placed antiparallel across every motor terminal. When the MOSFET shuts off, the reverse inductive kick is immediately shunted through the diode back to the positive rail, clamping the spike safely to $V_{bat} + 0.45\text{ V}$.
 2. **100Ω Series Gate Resistors:** Dampens high-frequency $LC$ ringing between the ESP32 pin capacitance and the MOSFET gate trace.
 3. **10kΩ Gate Pull-Down Resistors:** Microcontroller GPIO pins float in high-impedance mode for a few milliseconds during bootup or firmware flashing. Without pull-down resistors, the gates pick up stray capacitive charge and turn the motors on unpredictably while the drone is sitting on your desk. The 10kΩ resistors hold the gates firmly at 0V until the firmware actively takes control.
+<img width="540" height="437" alt="WhatsApp Image 2026-09-19 at 11 45 43 PM" src="https://github.com/user-attachments/assets/7cc1ad72-43da-4e19-ae21-c1a3b9ce56be" />
+<img width="1132" height="797" alt="WhatsApp Image 2026-09-19 at 11 44 38 PM" src="https://github.com/user-attachments/assets/b0c4b477-8644-457c-9248-3e64ff5e6c37" />
+
 
 ---
 
