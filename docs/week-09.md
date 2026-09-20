@@ -33,9 +33,9 @@ The process required steady hands and a lot of tacky flux:
 4. We bridged a **470µF low-ESR electrolytic capacitor** directly across the main LiPo input pads to swallow transient voltage dips during aggressive throttle punches.
 
 Before plugging in a battery, we spent thirty minutes with our multimeter on continuity mode, probing every single adjacent trace. **Zero shorts.**
-<img width="336" height="460" alt="WhatsApp Image 2026-09-20 at 9 05 32 AM" src="https://github.com/user-attachments/assets/c635dfc9-5913-4e2a-a1a0-1ea42db5b667" />
-<img width="336" height="460" alt="WhatsApp Image 2026-09-20 at 10 27 49 AM" src="https://github.com/user-attachments/assets/8f0e7eab-e551-44ce-9cfc-5250e6297e9e" />
-<img width="336" height="460" alt="WhatsApp Image 2026-09-20 at 10 27 48 AM" src="https://github.com/user-attachments/assets/b7e12fad-3ef8-4966-87e5-a3b33dad038a" />
+<img width="315" height="460" alt="WhatsApp Image 2026-09-20 at 9 05 32 AM" src="https://github.com/user-attachments/assets/c635dfc9-5913-4e2a-a1a0-1ea42db5b667" />
+<img width="315" height="460" alt="WhatsApp Image 2026-09-20 at 10 27 49 AM" src="https://github.com/user-attachments/assets/8f0e7eab-e551-44ce-9cfc-5250e6297e9e" />
+<img width="315" height="460" alt="WhatsApp Image 2026-09-20 at 10 27 48 AM" src="https://github.com/user-attachments/assets/b7e12fad-3ef8-4966-87e5-a3b33dad038a" />
 
 
 ---
