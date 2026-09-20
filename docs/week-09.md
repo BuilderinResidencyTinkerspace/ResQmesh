@@ -48,6 +48,10 @@ At standard microcontroller PWM frequencies (1 kHz to 4 kHz), the rapid pulsing 
 
 
 
+https://github.com/user-attachments/assets/4e7536c5-63f1-473d-8210-16360614ab90
+
+
+
 
 
 ```
@@ -105,6 +109,11 @@ Finally, we used our custom interactive USB serial CLI to spin each motor indivi
 - `test_motor 2 5` -> Front-Right spun counter-clockwise (CCW).
 - `test_motor 3 5` -> Rear-Right spun clockwise (CW).
 - `test_motor 4 5` -> Rear-Left spun counter-clockwise (CCW).
+- 
+
+https://github.com/user-attachments/assets/3c066aa0-1caa-42c5-9b14-0a82dfd169a4
+
+
 
 Every single channel responded with zero jitter. The hardware is built, tested, and electrically verified.
 
