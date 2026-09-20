@@ -41,7 +41,6 @@ Before plugging in a battery, we spent thirty minutes with our multimeter on con
 We wrote a minimal PWM test script to spin Motor 1 at 25% duty cycle. We plugged in the 1S LiPo, sent the test command, and were immediately greeted by an ear-splitting, piercing squeal that sounded like an angry mosquito directly inside our eardrums.
 
 At standard microcontroller PWM frequencies (1 kHz to 4 kHz), the rapid pulsing of current through the motor windings causes the motor casing and armature coils to physically vibrate at audio frequencies. It turns the motors into tiny mechanical loudspeakers.
-https://github.com/user-attachments/assets/74eea530-8851-472d-b9d1-078b9d55eaa6
 
 
 https://github.com/user-attachments/assets/e0b50fa9-7566-4cdf-a869-a46f64c3b0b5
