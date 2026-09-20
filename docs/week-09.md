@@ -111,8 +111,6 @@ Finally, we used our custom interactive USB serial CLI to spin each motor indivi
 - `test_motor 4 5` -> Rear-Left spun counter-clockwise (CCW).
 - 
 
-https://github.com/user-attachments/assets/3c066aa0-1caa-42c5-9b14-0a82dfd169a4
-
 
 
 Every single channel responded with zero jitter. The hardware is built, tested, and electrically verified.
