@@ -42,6 +42,9 @@ We wrote a minimal PWM test script to spin Motor 1 at 25% duty cycle. We plugged
 
 At standard microcontroller PWM frequencies (1 kHz to 4 kHz), the rapid pulsing of current through the motor windings causes the motor casing and armature coils to physically vibrate at audio frequencies. It turns the motors into tiny mechanical loudspeakers.
 
+
+
+
 ```
 Standard PWM (1 kHz - 4 kHz):    [EEEEEEEEEEEEEEEE!] --> Painful acoustic resonance!
 Ultrasonic PWM (20 kHz):         [Dead Silence...]    --> Above human hearing range!
