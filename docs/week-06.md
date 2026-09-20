@@ -63,7 +63,11 @@ By the end of the week, our physical wiring harness was fully mapped to the Seee
 | **D6** | `GPIO43` | Motor 4 PWM (Rear-Left)  | 20 kHz LEDC PWM output -> 100Ω gate resistor -> AO3400A Gate |
 | **3V3** | — | Regulated 3.3V Out | Dedicated quiet power rail to MPU9250 IMU |
 | **GND** | — | Logic Ground | Star-ground tie point to battery negative terminal |
-<img width="960" height="1280" alt="WhatsApp Image 2026-09-20 at 9 37 58 AM" src="https://github.com/user-attachments/assets/a9a54c20-0ad5-4db5-9d83-a4f46e3e1392" />
+<img width="860" height="1100" alt="WhatsApp Image 2026-09-20 at 9 37 58 AM" src="https://github.com/user-attachments/assets/a9a54c20-0ad5-4db5-9d83-a4f46e3e1392" />
+
+
+https://github.com/user-attachments/assets/fb0bdad3-6bdf-4919-a269-c35ca3fdb0d8
+
 
 ---
 
