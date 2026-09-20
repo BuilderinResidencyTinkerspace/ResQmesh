@@ -88,7 +88,7 @@ public:
     /**
      * @brief Process incoming WebSocket frame from smartphone touch controller.
      */
-    void processWebSocketFrame(const char *json_str, size_t len, char *resp_buf, size_t max_resp_len);
+    void processWebSocketFrame(const char *json_str, size_t len, char *resp_buf, size_t max_resp_len, int64_t now_us = 0);
 
     /**
      * @brief Broadcast ESP-NOW Swarm Heartbeat packet to neighbor drones.

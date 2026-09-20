@@ -92,7 +92,8 @@ extern "C" {
 #define IMU_MAX_CALIB_MOTION                                                   \
   0.15f // Max allowable g deviation during calibration
 
-// Bench testing mode: 0 = require physical MPU sensor, 1 = simulated IMU for bare-board desk/swarm testing
+// Bench testing mode: 0 = require physical MPU sensor, 1 = simulated IMU for
+// bare-board desk/swarm testing
 #define IMU_BENCH_TEST_MODE 0
 
 // =============================================================================
@@ -203,18 +204,24 @@ extern "C" {
 // =============================================================================
 // 9. RECEIVER LINK CONFIGURATION (Wi-Fi SoftAP & ESP-NOW Swarm)
 // =============================================================================
-// Receiver Mode: 0 = ESP-NOW Swarm, 1 = Wi-Fi SoftAP (Smartphone Touch
-// Controller)
-#define RECEIVER_MODE_WIFI 0
+// Receiver Mode:
+//   0 = Pure ESP-NOW Swarm (Peer-to-peer mesh between drones & GCS controller)
+//   1 = Wi-Fi SoftAP + ESP-NOW Concurrent Swarm Bridge (Fly via Phone while
+//   relaying to Swarm)
+#define RECEIVER_MODE_WIFI 1
+
+// Unified 2.4 GHz RF Channel (Wi-Fi AP and ESP-NOW MUST share the same channel)
+#define ESPNOW_WIFI_CHANNEL 1
+#define WIFI_AP_CHANNEL ESPNOW_WIFI_CHANNEL
 
 // Wi-Fi SoftAP Configuration (Used when RECEIVER_MODE_WIFI == 1)
 #define WIFI_AP_SSID "ResQmesh-Drone"
 #define WIFI_AP_PASSWORD "12345678" // Minimum 8 characters for WPA2-PSK
-#define WIFI_AP_CHANNEL 6           // 2.4GHz Wi-Fi channel
 #define WIFI_MAX_CLIENTS 2          // Max connected devices
 
-// ESP-NOW Configuration (Used when RECEIVER_MODE_WIFI == 0)
-#define ESPNOW_WIFI_CHANNEL 1
+// Swarm Mesh Relay from Phone (1 = re-broadcast phone stick commands to swarm
+// followers over ESP-NOW)
+#define SWARM_RELAY_TO_MESH 1
 
 // Swarm Mesh Configuration
 #define SWARM_DEFAULT_NODE_ID 1 // Default Node ID for this drone (1..254)
@@ -224,7 +231,10 @@ extern "C" {
 
 // Safety Watchdog Timeout: Failsafe automatically triggers and zeroes all motor
 // outputs if no control packet is received within this timeout window.
-#define RECEIVER_TIMEOUT_MS 300 // 300 ms watchdog (anti-flyaway)
+// 750 ms absorbs mobile browser JavaScript / Wi-Fi latency jitter while
+// preventing flyaways.
+#define RECEIVER_TIMEOUT_MS                                                    \
+  750 // 750 ms watchdog (tolerant to mobile Wi-Fi latency)
 #define STICK_THROTTLE_MIN 0
 #define STICK_THROTTLE_MAX 1000
 #define STICK_ANGLE_MAX_DEG 30.0f     // Max stick tilt command (±30 degrees)

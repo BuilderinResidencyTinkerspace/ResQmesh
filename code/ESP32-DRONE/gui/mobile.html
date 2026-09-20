@@ -528,6 +528,7 @@
       align-items: flex-end;
       justify-content: center;
       z-index: 120;
+      touch-action: pan-y !important;
     }
 
     .modal-drawer.show {
@@ -540,14 +541,40 @@
       border-radius: 18px 18px 0 0;
       width: 100%;
       max-width: 520px;
-      max-height: 86vh;
-      overflow-y: auto;
-      padding: 16px 20px env(safe-area-inset-bottom);
+      max-height: 82vh;
+      overflow-y: scroll;
+      -webkit-overflow-scrolling: touch !important;
+      overscroll-behavior-y: contain;
+      padding: 16px 20px calc(36px + env(safe-area-inset-bottom));
       box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.8);
       display: flex;
       flex-direction: column;
       gap: 14px;
       animation: slideUp 0.25s ease-out;
+      touch-action: pan-y !important;
+    }
+
+    /* Enable vertical touch drag and scrolling through all modal children */
+    .modal-content,
+    .modal-content div,
+    .modal-content span,
+    .modal-content p,
+    .modal-content header,
+    .modal-content label {
+      touch-action: pan-y !important;
+    }
+
+    /* Custom Sleek Scrollbar */
+    .modal-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .modal-content::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 3px;
+    }
+    .modal-content::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.5);
+      border-radius: 3px;
     }
 
     @keyframes slideUp {
@@ -589,6 +616,8 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      flex-shrink: 0;
+      touch-action: pan-y !important;
     }
 
     .card-title {
@@ -677,22 +706,24 @@
     .stepper {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      touch-action: pan-y !important;
     }
 
     .step-btn {
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       border-radius: 6px;
       background: #1e293b;
       border: 1px solid var(--border-line);
       color: var(--text-main);
       font-weight: 700;
-      font-size: 0.85rem;
+      font-size: 1rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
+      touch-action: manipulation !important;
     }
 
     .step-btn:active {
@@ -703,6 +734,9 @@
     .range-slider {
       flex: 1;
       accent-color: var(--accent-cyan);
+      height: 28px;
+      cursor: pointer;
+      touch-action: pan-x !important;
     }
 
     /* Modal / Failsafe Overlay */
@@ -762,6 +796,9 @@
       </div>
       <div class="hud-item">
         ST: <strong id="val-state" style="color: var(--accent-emerald);">IDLE</strong>
+      </div>
+      <div class="hud-item" id="hud-swarm-box" style="display:inline-flex; color: var(--accent-cyan);">
+        MESH: <strong id="val-swarm-peers">LEADER</strong>
       </div>
       <div class="hud-item ping">
         <strong id="val-ping">12ms</strong>
@@ -1098,6 +1135,15 @@
     el.btnOpenTuning.addEventListener('click', () => el.tuningModal.classList.add('show'));
     el.pfdHorizon.addEventListener('click', () => el.tuningModal.classList.add('show'));
     el.modalCloseBtn.addEventListener('click', () => el.tuningModal.classList.remove('show'));
+    el.tuningModal.addEventListener('click', (e) => {
+      if (e.target === el.tuningModal) el.tuningModal.classList.remove('show');
+    });
+
+    const modalContentEl = document.querySelector('.modal-content');
+    if (modalContentEl) {
+      modalContentEl.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+      modalContentEl.addEventListener('touchmove', (e) => e.stopPropagation(), { passive: true });
+    }
 
     el.chkInvertPitch.addEventListener('change', (e) => { settings.invertPitch = e.target.checked; saveSettings(); });
     el.chkInvertRoll.addEventListener('change', (e) => { settings.invertRoll = e.target.checked; saveSettings(); });

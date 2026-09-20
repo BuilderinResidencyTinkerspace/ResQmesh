@@ -192,24 +192,40 @@ extern "C" {
 #define MOTOR_TEST_ENABLED 1
 
 // =============================================================================
-// 9. RECEIVER LINK & SWARM PROTOCOL (ESP-NOW)
+// 9. RECEIVER LINK CONFIGURATION (Wi-Fi SoftAP & ESP-NOW Swarm)
 // =============================================================================
-// Receiver Mode: 0 = ESP-NOW Swarm, 1 = Wi-Fi SoftAP (Phone Control)
+// Receiver Mode:
+//   0 = Pure ESP-NOW Swarm (Peer-to-peer mesh between drones & GCS controller)
+//   1 = Wi-Fi SoftAP + ESP-NOW Concurrent Swarm Bridge (Fly via Phone while relaying to Swarm)
 #define RECEIVER_MODE_WIFI 1
 
+// Unified 2.4 GHz RF Channel (Wi-Fi AP and ESP-NOW MUST share the same channel)
 #define ESPNOW_WIFI_CHANNEL 1
-#define RECEIVER_TIMEOUT_MS 300 // Failsafe triggers if no packet for 300 ms
-#define STICK_THROTTLE_MIN 0
-#define STICK_THROTTLE_MAX 1000
-#define STICK_ANGLE_MAX_DEG 30.0f     // Max stick tilt command (±30 degrees)
-#define STICK_YAW_RATE_MAX_DPS 200.0f // Max stick yaw rate command (±200 deg/s)
-#define ARM_THROTTLE_MAX 100          // Throttle must be < 10% to allow arming
+#define WIFI_AP_CHANNEL ESPNOW_WIFI_CHANNEL
+
+// Wi-Fi SoftAP Configuration (Used when RECEIVER_MODE_WIFI == 1)
+#define WIFI_AP_SSID "ResQmesh-Drone"
+#define WIFI_AP_PASSWORD "12345678" // Minimum 8 characters for WPA2-PSK
+#define WIFI_MAX_CLIENTS 2          // Max connected devices
+
+// Swarm Mesh Relay from Phone (1 = re-broadcast phone stick commands to swarm followers over ESP-NOW)
+#define SWARM_RELAY_TO_MESH 1
 
 // Swarm Mesh Configuration
 #define SWARM_DEFAULT_NODE_ID 1        // Default Node ID for this drone (1..254)
 #define SWARM_MAX_PEERS 16             // Max tracked neighbor nodes in swarm table
 #define SWARM_HEARTBEAT_INTERVAL_MS 100 // 10 Hz heartbeat broadcast
 #define SWARM_PEER_TIMEOUT_MS 3000     // Peer expired if no heartbeat in 3000 ms
+
+// Safety Watchdog Timeout: Failsafe automatically triggers and zeroes all motor
+// outputs if no control packet is received within this timeout window.
+// 750 ms absorbs mobile browser JavaScript / Wi-Fi latency jitter while preventing flyaways.
+#define RECEIVER_TIMEOUT_MS 750 // 750 ms watchdog (tolerant to mobile Wi-Fi latency)
+#define STICK_THROTTLE_MIN 0
+#define STICK_THROTTLE_MAX 1000
+#define STICK_ANGLE_MAX_DEG 30.0f     // Max stick tilt command (±30 degrees)
+#define STICK_YAW_RATE_MAX_DPS 200.0f // Max stick yaw rate command (±200 deg/s)
+#define ARM_THROTTLE_MAX 100          // Throttle must be < 10% to allow arming
 
 // =============================================================================
 // 10. BATTERY MONITOR (1S LIPO)

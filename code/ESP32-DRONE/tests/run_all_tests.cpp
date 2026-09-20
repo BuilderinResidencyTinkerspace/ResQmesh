@@ -412,6 +412,77 @@ void test_swarm_protocol_and_mesh() {
     TEST_ASSERT(data.emergency_stop == true, "Emergency stop flag asserted in receiver data");
 }
 
+// =============================================================================
+// TEST 8: Concurrent Mobile Phone WebSocket + Swarm Mesh Bridge
+// =============================================================================
+void test_concurrent_wifi_and_swarm_relay() {
+    TEST_HEADER("Concurrent Phone WebSocket + Swarm Mesh Bridge");
+
+    Receiver rx;
+    rx.setNodeId(1);
+    rx.setRole(SWARM_ROLE_LEADER);
+
+    // 1. Process simulated incoming phone touch controller WebSocket frame
+    const char *ws_json = "{\"t\":500,\"y\":-150,\"p\":100,\"r\":-80,\"a\":1}";
+    char resp_buf[256] = {0};
+
+    int64_t now_us = 3000000;
+    rx.processWebSocketFrame(ws_json, strlen(ws_json), resp_buf, sizeof(resp_buf), now_us);
+
+    // Verify local receiver data updated from phone
+    ReceiverData data;
+    bool ok = rx.update(data, now_us + 10000);
+    TEST_ASSERT(ok, "WebSocket packet accepted and receiver updated");
+    TEST_ASSERT(data.throttle == 500.0f, "Phone throttle 500 parsed accurately");
+    TEST_ASSERT(data.arm_command == true, "Phone arming asserted");
+    TEST_ASSERT(fabsf(data.pitch_angle - ((100.0f / 500.0f) * STICK_ANGLE_MAX_DEG)) < 0.1f, "Phone pitch mapped to target angle");
+    TEST_ASSERT(fabsf(data.yaw_rate - ((-150.0f / 500.0f) * STICK_YAW_RATE_MAX_DPS)) < 0.1f, "Phone yaw mapped to target yaw rate");
+
+    // 2. Check telemetry JSON response string for phone HUD
+    TEST_ASSERT(strstr(resp_buf, "\"b\":") != nullptr, "Response contains battery voltage");
+    TEST_ASSERT(strstr(resp_buf, "\"s\":") != nullptr, "Response contains system state");
+    TEST_ASSERT(strstr(resp_buf, "\"peers\":0") != nullptr, "Response reports 0 peers when alone");
+
+    // 3. Inject a peer heartbeat (Follower Drone #2)
+    SwarmHeartbeatPacket hb = {};
+    hb.header.magic[0] = SWARM_MAGIC_0;
+    hb.header.magic[1] = SWARM_MAGIC_1;
+    hb.header.msg_type = SWARM_MSG_HEARTBEAT;
+    hb.header.target_id = SWARM_NODE_BROADCAST;
+    hb.header.sender_id = 2; // Drone #2
+    hb.header.sequence  = 1;
+    hb.role             = SWARM_ROLE_FOLLOWER;
+    hb.state            = STATE_ARMED;
+    hb.battery_mv       = 3820;
+    hb.battery_pct      = 75;
+    hb.crc              = Receiver::computeCRC((const uint8_t*)&hb, sizeof(hb) - sizeof(uint16_t));
+
+    rx.injectSwarmPacket((const uint8_t*)&hb, sizeof(hb), 3010000);
+    TEST_ASSERT(rx.getPeerTable().getActivePeerCount() == 1, "Follower Drone #2 registered in Swarm Peer Table");
+
+    // 4. Send another phone frame and verify response reports the active follower
+    memset(resp_buf, 0, sizeof(resp_buf));
+    rx.processWebSocketFrame("{\"t\":520,\"y\":0,\"p\":0,\"r\":0,\"a\":1}", 37, resp_buf, sizeof(resp_buf));
+    TEST_ASSERT(strstr(resp_buf, "\"peers\":1") != nullptr, "Phone HUD telemetry reports 1 active mesh peer node");
+    TEST_ASSERT(strstr(resp_buf, "\"nodes\":[2]") != nullptr, "Telemetry lists follower Node #2 in active mesh");
+
+    // 4b. Test targeted control to Follower Node #2 (Leader sticks stay zeroed/neutral)
+    memset(resp_buf, 0, sizeof(resp_buf));
+    rx.processWebSocketFrame("{\"t\":600,\"y\":50,\"p\":-30,\"r\":40,\"a\":1,\"target\":2}", 52, resp_buf, sizeof(resp_buf), 3020000);
+    ReceiverData leader_rx_data;
+    rx.update(leader_rx_data, 3025000);
+    TEST_ASSERT(leader_rx_data.throttle == 0.0f, "Leader throttle remains 0 when targeting Follower #2");
+    TEST_ASSERT(strstr(resp_buf, "\"tgt\":2") != nullptr, "Telemetry confirms target is Node #2");
+    TEST_ASSERT(strstr(resp_buf, "\"fb\":3.82") != nullptr, "Telemetry includes Follower #2 battery voltage");
+
+    // 5. Verify sendHeartbeat and sendSwarmCommand execute without error
+    bool hb_sent = rx.sendHeartbeat(STATE_ARMED, 3900, 85, 0.0f, 0.0f, 0.0f, true, 10);
+    TEST_ASSERT(hb_sent, "Dual-mode Swarm Heartbeat broadcast executed");
+
+    bool cmd_sent = rx.sendSwarmCommand(CMD_SWARM_ARM_ALL, SWARM_NODE_BROADCAST);
+    TEST_ASSERT(cmd_sent, "Dual-mode Swarm Mission Command broadcast executed");
+}
+
 int main() {
     printf("========================================================\n");
     printf("  ESP32-DRONE AUTOMATED HOST UNIT TEST SUITE\n");
@@ -424,6 +495,7 @@ int main() {
     test_battery_monitor();
     test_arming_and_failsafe();
     test_swarm_protocol_and_mesh();
+    test_concurrent_wifi_and_swarm_relay();
 
     printf("\n========================================================\n");
     printf("  TEST RESULTS: %d PASSED, %d FAILED\n", g_tests_passed, g_tests_failed);

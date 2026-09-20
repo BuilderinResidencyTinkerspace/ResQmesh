@@ -16,13 +16,13 @@
 #include "esp_timer.h"
 #include "esp_idf_version.h"
 
+#include "esp_now.h"
 #if (RECEIVER_MODE_WIFI == 1)
 #include <WiFi.h>
 #include <esp_http_server.h>
 #include "web_ui.h"
 #else
 #include "esp_wifi.h"
-#include "esp_now.h"
 #endif
 
 static const char *TAG = "RECEIVER";
@@ -116,7 +116,7 @@ static bool start_web_server() {
 }
 #endif
 
-#if defined(ESP_PLATFORM) && (RECEIVER_MODE_WIFI == 0)
+#if defined(ESP_PLATFORM)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
 static void espnow_recv_wrapper(const esp_now_recv_info_t *recv_info, const uint8_t *data, int len) {
     const uint8_t *mac = recv_info ? recv_info->src_addr : nullptr;
@@ -159,9 +159,8 @@ Receiver::~Receiver() {
         s_httpd = NULL;
     }
     WiFi.softAPdisconnect(true);
-#else
-    esp_now_deinit();
 #endif
+    esp_now_deinit();
 #endif
     if (instance_ == this) {
         instance_ = nullptr;
@@ -186,9 +185,11 @@ uint16_t Receiver::computeCRC(const uint8_t *data, size_t length) {
 bool Receiver::init() {
 #if defined(ESP_PLATFORM)
 #if (RECEIVER_MODE_WIFI == 1)
-    ESP_LOGI(TAG, "Initializing Wi-Fi SoftAP for Phone Control: SSID='%s'", WIFI_AP_SSID);
+    ESP_LOGI(TAG, "Initializing Wi-Fi SoftAP + ESP-NOW Swarm Bridge (SSID='%s', Ch=%d)...", WIFI_AP_SSID, WIFI_AP_CHANNEL);
 
     WiFi.mode(WIFI_AP);
+    WiFi.setSleep(false);
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);
     IPAddress local_ip(192, 168, 4, 1);
     IPAddress gateway(192, 168, 4, 1);
     IPAddress subnet(255, 255, 255, 0);
@@ -201,6 +202,34 @@ bool Receiver::init() {
     }
 
     ESP_LOGI(TAG, "SoftAP online! Connect phone to SSID '%s' -> navigate to http://192.168.4.1", WIFI_AP_SSID);
+
+    // Initialize ESP-NOW on the same Wi-Fi channel for Swarm Mesh communication
+    esp_err_t err = esp_now_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_now_init failed alongside SoftAP: 0x%x", err);
+    } else {
+        err = esp_now_register_recv_cb(espnow_recv_wrapper);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "esp_now_register_recv_cb failed: 0x%x", err);
+        }
+
+        static const uint8_t s_broadcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+        esp_now_peer_info_t peer_info = {};
+        memcpy(peer_info.peer_addr, s_broadcast_mac, 6);
+        peer_info.channel = WIFI_AP_CHANNEL;
+        peer_info.encrypt = false;
+
+        if (esp_now_is_peer_exist(s_broadcast_mac) == false) {
+            esp_err_t p_err = esp_now_add_peer(&peer_info);
+            if (p_err != ESP_OK) {
+                ESP_LOGW(TAG, "Failed to register ESP-NOW broadcast peer: 0x%x", p_err);
+            } else {
+                ESP_LOGI(TAG, "ESP-NOW broadcast peer registered successfully on Channel %d.", WIFI_AP_CHANNEL);
+            }
+        }
+    }
+
+    role_ = SWARM_ROLE_LEADER; // Designate as Swarm Leader / Bridge node
     return start_web_server();
 
 #else
@@ -217,6 +246,8 @@ bool Receiver::init() {
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_start();
     esp_wifi_set_channel(ESPNOW_WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_wifi_set_max_tx_power(78);
 
     err = esp_now_init();
     if (err != ESP_OK) {
@@ -265,11 +296,12 @@ void Receiver::setTelemetry(float batt_v, float pitch, float roll, const char *s
     }
 }
 
-void Receiver::processWebSocketFrame(const char *json_str, size_t len, char *resp_buf, size_t max_resp_len) {
+void Receiver::processWebSocketFrame(const char *json_str, size_t len, char *resp_buf, size_t max_resp_len, int64_t now_us) {
     if (!json_str || len == 0) return;
 
     float t = 0.0f;
     int y = 0, p = 0, r = 0, a = 0, calib = 0;
+    int target = SWARM_NODE_BROADCAST; // Default 255 = ALL / Swarm formation
 
     const char *p_t = strstr(json_str, "\"t\":");
     if (p_t) t = (float)atof(p_t + 4);
@@ -289,31 +321,89 @@ void Receiver::processWebSocketFrame(const char *json_str, size_t len, char *res
     const char *p_c = strstr(json_str, "\"calib\":");
     if (p_c) calib = atoi(p_c + 8);
 
-    latest_packet_.throttle = (uint16_t)std::max(0.0f, std::min(1000.0f, t));
-    latest_packet_.yaw      = (int16_t)std::max(-500, std::min(500, y));
-    latest_packet_.pitch    = (int16_t)std::max(-500, std::min(500, p));
-    latest_packet_.roll     = (int16_t)std::max(-500, std::min(500, r));
-    latest_packet_.arm      = (uint8_t)a;
-    latest_packet_.mode     = (calib == 1) ? MODE_CALIB : MODE_ANGLE;
-    latest_packet_.sequence++;
+    const char *p_tgt = strstr(json_str, "\"target\":");
+    if (p_tgt) target = atoi(p_tgt + 9);
+
+    uint8_t target_id = (uint8_t)target;
+
+    // Apply sticks to Leader if commanding ALL (255) or specifically Leader (node_id_)
+    if (target_id == SWARM_NODE_BROADCAST || target_id == node_id_) {
+        latest_packet_.throttle = (uint16_t)std::max(0.0f, std::min(1000.0f, t));
+        latest_packet_.yaw      = (int16_t)std::max(-500, std::min(500, y));
+        latest_packet_.pitch    = (int16_t)std::max(-500, std::min(500, p));
+        latest_packet_.roll     = (int16_t)std::max(-500, std::min(500, r));
+        latest_packet_.arm      = (uint8_t)a;
+        latest_packet_.mode     = (calib == 1) ? MODE_CALIB : MODE_ANGLE;
+        latest_packet_.sequence++;
+    } else {
+        // Pilot is specifically flying a Follower drone:
+        // Leader motors stay neutral/idle so leader doesn't fly off unintentionally
+        latest_packet_.throttle = 0;
+        latest_packet_.roll     = 0;
+        latest_packet_.pitch    = 0;
+        latest_packet_.yaw      = 0;
+        if (a == 2) latest_packet_.arm = 2; // Emergency stop cuts leader too
+    }
 
 #if defined(ESP_PLATFORM)
     last_packet_time_us_ = esp_timer_get_time();
 #else
-    last_packet_time_us_ += 25000;
+    last_packet_time_us_ = (now_us > 0) ? now_us : (last_packet_time_us_ + 25000);
 #endif
     is_connected_ = true;
     packets_received_++;
 
+#if defined(ESP_PLATFORM) && (SWARM_RELAY_TO_MESH == 1)
+    // Relay control command over ESP-NOW Swarm (unless target is Leader-only)
+    if (target_id != node_id_) {
+        SwarmControlPacket swarm_pkt;
+        swarm_pkt.header.magic[0] = SWARM_MAGIC_0;
+        swarm_pkt.header.magic[1] = SWARM_MAGIC_1;
+        swarm_pkt.header.msg_type = SWARM_MSG_CONTROL;
+        swarm_pkt.header.target_id = target_id; // Directed to specific follower or BROADCAST (0xFF)
+        swarm_pkt.header.sender_id = node_id_;
+        swarm_pkt.header.sequence  = ++tx_sequence_;
+        swarm_pkt.throttle        = (uint16_t)std::max(0.0f, std::min(1000.0f, t));
+        swarm_pkt.roll            = (int16_t)std::max(-500, std::min(500, r));
+        swarm_pkt.pitch           = (int16_t)std::max(-500, std::min(500, p));
+        swarm_pkt.yaw             = (int16_t)std::max(-500, std::min(500, y));
+        swarm_pkt.arm             = (uint8_t)a;
+        swarm_pkt.mode            = (calib == 1) ? MODE_CALIB : MODE_ANGLE;
+        swarm_pkt.crc             = computeCRC((const uint8_t *)&swarm_pkt, sizeof(swarm_pkt) - sizeof(uint16_t));
+
+        static const uint8_t s_bcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+        esp_now_send(s_bcast_mac, (const uint8_t *)&swarm_pkt, sizeof(swarm_pkt));
+    }
+#endif
+
     if (resp_buf && max_resp_len > 0) {
+        char nodes_json[64] = "";
+        int n_off = 0;
+        for (size_t i = 0; i < SWARM_MAX_PEERS; i++) {
+            const SwarmPeer *p = peer_table_.getPeer(i);
+            if (p && p->active) {
+                if (n_off > 0) n_off += snprintf(nodes_json + n_off, sizeof(nodes_json) - n_off, ",");
+                n_off += snprintf(nodes_json + n_off, sizeof(nodes_json) - n_off, "%u", (unsigned)p->node_id);
+            }
+        }
+
+        const SwarmPeer *fp = (target_id != SWARM_NODE_BROADCAST && target_id != node_id_) ? peer_table_.findPeer(target_id) : nullptr;
+        float fb_v = fp ? ((float)fp->battery_mv / 1000.0f) : 0.0f;
+        int fa_arm = fp ? (fp->armed ? 1 : 0) : 0;
+
         snprintf(resp_buf, max_resp_len,
-            "{\"b\":%.2f,\"p\":%.1f,\"r\":%.1f,\"s\":\"%s\",\"l\":%.0f,\"a\":%d}",
+            "{\"b\":%.2f,\"p\":%.1f,\"r\":%.1f,\"s\":\"%s\",\"l\":%.0f,\"a\":%d,\"peers\":%u,\"nodes\":[%s],\"tgt\":%u,\"fb\":%.2f,\"fa\":%d}",
             telem_batt_v_,
             telem_pitch_,
             telem_roll_,
             telem_state_,
             telem_loop_hz_,
-            (latest_packet_.arm == 1 ? 1 : 0)
+            (latest_packet_.arm == 1 ? 1 : 0),
+            (unsigned int)peer_table_.getActivePeerCount(),
+            nodes_json,
+            (unsigned)target_id,
+            fb_v,
+            fa_arm
         );
     }
 }
@@ -490,7 +580,7 @@ bool Receiver::sendHeartbeat(uint8_t state, uint16_t batt_mv, uint8_t batt_pct,
     pkt.uptime_s         = uptime_s;
     pkt.crc              = computeCRC((const uint8_t *)&pkt, sizeof(pkt) - sizeof(uint16_t));
 
-#if defined(ESP_PLATFORM) && (RECEIVER_MODE_WIFI == 0)
+#if defined(ESP_PLATFORM)
     static const uint8_t bcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     esp_err_t err = esp_now_send(bcast_mac, (const uint8_t *)&pkt, sizeof(pkt));
     return (err == ESP_OK);
@@ -516,7 +606,7 @@ bool Receiver::sendSwarmCommand(uint8_t cmd_id, uint8_t target_id, const uint8_t
     }
     pkt.crc = computeCRC((const uint8_t *)&pkt, sizeof(pkt) - sizeof(uint16_t));
 
-#if defined(ESP_PLATFORM) && (RECEIVER_MODE_WIFI == 0)
+#if defined(ESP_PLATFORM)
     static const uint8_t bcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     esp_err_t err = esp_now_send(bcast_mac, (const uint8_t *)&pkt, sizeof(pkt));
     return (err == ESP_OK);

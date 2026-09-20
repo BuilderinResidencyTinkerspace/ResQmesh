@@ -528,6 +528,105 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       background: #334155;
     }
 
+    /* Swarm Target Selector */
+    .swarm-target-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin: 2px 0 3px;
+    }
+
+    .target-badge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 2px;
+    }
+
+    .target-title {
+      font-size: 0.52rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+    }
+
+    .target-badge {
+      font-size: 0.52rem;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+    }
+
+    .target-badge.swarm {
+      background: rgba(0, 242, 254, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 242, 254, 0.3);
+    }
+
+    .target-badge.leader {
+      background: rgba(59, 130, 246, 0.18);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+
+    .target-badge.follower {
+      background: rgba(168, 85, 247, 0.2);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+    }
+
+    .target-pills {
+      display: flex;
+      width: 100%;
+      background: #090e18;
+      border: 1px solid var(--border-line);
+      border-radius: 6px;
+      padding: 2px;
+      gap: 2px;
+      overflow-x: auto;
+    }
+
+    .target-pill {
+      flex: 1;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-dim);
+      font-family: var(--font-ui);
+      font-size: 0.58rem;
+      font-weight: 600;
+      padding: 4px 2px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .target-pill.active {
+      background: rgba(0, 242, 254, 0.2);
+      color: var(--accent-cyan);
+      border-color: rgba(0, 242, 254, 0.5);
+      box-shadow: 0 0 6px rgba(0, 242, 254, 0.25);
+      font-weight: 700;
+    }
+
+    .target-pill[data-target="1"].active {
+      background: rgba(59, 130, 246, 0.22);
+      color: #93c5fd;
+      border-color: rgba(59, 130, 246, 0.55);
+      box-shadow: 0 0 6px rgba(59, 130, 246, 0.3);
+    }
+
+    .target-pill[data-target="2"].active,
+    .target-pill:not([data-target="255"]):not([data-target="1"]).active {
+      background: rgba(168, 85, 247, 0.25);
+      color: #d8b4fe;
+      border-color: rgba(168, 85, 247, 0.6);
+      box-shadow: 0 0 6px rgba(168, 85, 247, 0.35);
+    }
+
     /* Tuning / Adjustments Modal Drawer */
     .modal-drawer {
       position: fixed;
@@ -538,6 +637,7 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       align-items: flex-end;
       justify-content: center;
       z-index: 120;
+      touch-action: pan-y !important;
     }
 
     .modal-drawer.show {
@@ -550,14 +650,40 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       border-radius: 18px 18px 0 0;
       width: 100%;
       max-width: 520px;
-      max-height: 86vh;
-      overflow-y: auto;
-      padding: 16px 20px env(safe-area-inset-bottom);
+      max-height: 82vh;
+      overflow-y: scroll;
+      -webkit-overflow-scrolling: touch !important;
+      overscroll-behavior-y: contain;
+      padding: 16px 20px calc(36px + env(safe-area-inset-bottom));
       box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.8);
       display: flex;
       flex-direction: column;
       gap: 14px;
       animation: slideUp 0.25s ease-out;
+      touch-action: pan-y !important;
+    }
+
+    /* Enable vertical touch drag and scrolling through all modal children */
+    .modal-content,
+    .modal-content div,
+    .modal-content span,
+    .modal-content p,
+    .modal-content header,
+    .modal-content label {
+      touch-action: pan-y !important;
+    }
+
+    /* Custom Sleek Scrollbar */
+    .modal-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .modal-content::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 3px;
+    }
+    .modal-content::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.5);
+      border-radius: 3px;
     }
 
     @keyframes slideUp {
@@ -599,6 +725,8 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       gap: 10px;
+      flex-shrink: 0;
+      touch-action: pan-y !important;
     }
 
     .card-title {
@@ -687,22 +815,24 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     .stepper {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      touch-action: pan-y !important;
     }
 
     .step-btn {
-      width: 28px;
-      height: 28px;
+      width: 32px;
+      height: 32px;
       border-radius: 6px;
       background: #1e293b;
       border: 1px solid var(--border-line);
       color: var(--text-main);
       font-weight: 700;
-      font-size: 0.85rem;
+      font-size: 1rem;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
+      touch-action: manipulation !important;
     }
 
     .step-btn:active {
@@ -713,6 +843,9 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     .range-slider {
       flex: 1;
       accent-color: var(--accent-cyan);
+      height: 28px;
+      cursor: pointer;
+      touch-action: pan-x !important;
     }
 
     /* Modal / Failsafe Overlay */
@@ -773,6 +906,9 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       <div class="hud-item">
         ST: <strong id="val-state" style="color: var(--accent-emerald);">IDLE</strong>
       </div>
+      <div class="hud-item" id="hud-swarm-box" style="display:none; color: var(--accent-cyan);">
+        MESH: <strong id="val-swarm-peers">0</strong>
+      </div>
       <div class="hud-item ping">
         <strong id="val-ping">--ms</strong>
       </div>
@@ -824,6 +960,19 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       <div class="pfd-angles">
         <span>P: <strong id="att-pitch">+0.0°</strong></span>
         <span>R: <strong id="att-roll">+0.0°</strong></span>
+      </div>
+
+      <!-- Swarm Target Selector -->
+      <div class="swarm-target-box">
+        <div class="target-badge-row">
+          <span class="target-title">CONTROL TARGET:</span>
+          <span class="target-badge swarm" id="target-status-badge">ALL (SWARM)</span>
+        </div>
+        <div class="target-pills" id="target-pill-group">
+          <button class="target-pill active" data-target="255">🌐 ALL</button>
+          <button class="target-pill" data-target="1">⭐ LEAD (#1)</button>
+          <button class="target-pill" data-target="2">🤖 FOLL (#2)</button>
+        </div>
       </div>
 
       <!-- Slide to Arm -->
@@ -1014,6 +1163,7 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       arm: 0,           // 0 = Disarm, 1 = Arm, 2 = Kill
       holdThrottle: true,
       armed: false,
+      targetNode: 255,   // 255 = SWARM (ALL), 1 = Leader, 2 = Follower 2, etc.
       ws: null,
       lastPingSent: 0,
       pingMs: 0,
@@ -1077,6 +1227,10 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       pfdSky: document.getElementById('pfd-sky'),
       attPitch: document.getElementById('att-pitch'),
       attRoll: document.getElementById('att-roll'),
+      boxSwarm: document.getElementById('hud-swarm-box'),
+      valSwarm: document.getElementById('val-swarm-peers'),
+      targetPillGroup: document.getElementById('target-pill-group'),
+      targetBadge: document.getElementById('target-status-badge'),
       overlay: document.getElementById('disconnect-overlay'),
       btnReconnect: document.getElementById('btn-reconnect'),
       gimbalLeft: document.getElementById('gimbal-left-zone'),
@@ -1137,7 +1291,7 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       el.readoutPrTrim.textContent = `P${settings.pitchTrim > 0 ? '+' : ''}${settings.pitchTrim} R${settings.rollTrim > 0 ? '+' : ''}${settings.rollTrim}`;
     }
 
-    // Modal Events
+    // Modal Events & Touch Isolation
     el.btnOpenTuning.addEventListener('click', () => {
       el.tuningModal.classList.add('show');
     });
@@ -1147,6 +1301,21 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     el.modalCloseBtn.addEventListener('click', () => {
       el.tuningModal.classList.remove('show');
     });
+    el.tuningModal.addEventListener('click', (e) => {
+      if (e.target === el.tuningModal) {
+        el.tuningModal.classList.remove('show');
+      }
+    });
+
+    const modalContentEl = document.querySelector('.modal-content');
+    if (modalContentEl) {
+      modalContentEl.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+      }, { passive: true });
+      modalContentEl.addEventListener('touchmove', (e) => {
+        e.stopPropagation();
+      }, { passive: true });
+    }
 
     el.chkInvertPitch.addEventListener('change', (e) => { settings.invertPitch = e.target.checked; saveSettings(); });
     el.chkInvertRoll.addEventListener('change', (e) => { settings.invertRoll = e.target.checked; saveSettings(); });
@@ -1377,7 +1546,37 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     });
 
     // =========================================================================
-    // WebSocket High-Speed Engine (40 Hz)
+    // Swarm Target Selection (All / Leader / Followers)
+    // =========================================================================
+    function setControlTarget(tgt) {
+      ctrl.targetNode = tgt;
+      document.querySelectorAll('.target-pill').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.target, 10) === tgt);
+      });
+      if (el.targetBadge) {
+        if (tgt === 255) {
+          el.targetBadge.textContent = "ALL (SWARM)";
+          el.targetBadge.className = "target-badge swarm";
+        } else if (tgt === 1) {
+          el.targetBadge.textContent = "LEADER (#1)";
+          el.targetBadge.className = "target-badge leader";
+        } else {
+          el.targetBadge.textContent = `FOLLOWER (#${tgt})`;
+          el.targetBadge.className = "target-badge follower";
+        }
+      }
+      if (navigator.vibrate) navigator.vibrate(30);
+    }
+
+    document.querySelectorAll('.target-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tgt = parseInt(btn.dataset.target, 10);
+        setControlTarget(tgt);
+      });
+    });
+
+    // =========================================================================
+    // WebSocket High-Speed Engine (25 Hz)
     // =========================================================================
     function initWebSocket() {
       const wsUrl = `ws://${window.location.host}/ws`;
@@ -1408,6 +1607,31 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
               el.connDot.className = 'status-dot online';
             }
           }
+          if (telem.peers !== undefined && el.boxSwarm && el.valSwarm) {
+            el.boxSwarm.style.display = 'inline-flex';
+            el.valSwarm.textContent = telem.peers > 0 ? `${telem.peers} NODES` : 'STANDALONE';
+          }
+
+          // Dynamic Swarm Follower Node Discovery
+          if (Array.isArray(telem.nodes) && el.targetPillGroup) {
+            telem.nodes.forEach(nodeId => {
+              if (nodeId > 1 && !document.querySelector(`.target-pill[data-target="${nodeId}"]`)) {
+                const btn = document.createElement('button');
+                btn.className = 'target-pill';
+                btn.dataset.target = nodeId;
+                btn.textContent = `🤖 FOLL (#${nodeId})`;
+                btn.addEventListener('click', () => setControlTarget(nodeId));
+                el.targetPillGroup.appendChild(btn);
+              }
+            });
+          }
+
+          // Live Follower Telemetry in badge if targeted
+          if (ctrl.targetNode !== 255 && ctrl.targetNode !== 1 && el.targetBadge) {
+            if (telem.fb > 0) {
+              el.targetBadge.textContent = `FOLLOWER #${ctrl.targetNode}: ${telem.fb.toFixed(2)}V ${telem.fa ? '(ARMED)' : '(DISARMED)'}`;
+            }
+          }
 
           // Live Attitude Horizon
           if (telem.p !== undefined && telem.r !== undefined) {
@@ -1419,12 +1643,12 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
             el.pfdSky.style.transform = `rotate(${-telem.r}deg) translateY(${pitchOffset}px)`;
           }
 
-          // Reset safety timeout
+          // Reset safety timeout (1500 ms to tolerate mobile Wi-Fi latency jitter)
           clearTimeout(ctrl.failsafeTimer);
           ctrl.failsafeTimer = setTimeout(() => {
             el.connDot.className = 'status-dot';
             el.overlay.classList.add('show');
-          }, 600);
+          }, 1500);
 
         } catch (err) {
           console.warn("Telem parse error:", err);
@@ -1465,17 +1689,18 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           y: effectiveYaw,
           p: effectivePitch,
           r: effectiveRoll,
-          a: ctrl.arm
+          a: ctrl.arm,
+          target: ctrl.targetNode
         }, extra);
 
         ctrl.ws.send(JSON.stringify(payload));
       }
     }
 
-    // 40 Hz Control Loop (25 ms interval)
+    // 25 Hz Control Loop (40 ms interval - rock solid on mobile Wi-Fi)
     setInterval(() => {
       sendPacket();
-    }, 25);
+    }, 40);
 
     el.btnReconnect.addEventListener('click', () => {
       initWebSocket();
