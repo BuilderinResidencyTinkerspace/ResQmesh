@@ -23,6 +23,7 @@ To keep our flight controller as light as possible, we opted against bulky break
 
 <img width="300" height="400" alt="20260915_001343" src="https://github.com/user-attachments/assets/efbc844c-e978-4f89-b35a-9c03be6d6b7c" />
 <img width="300" height="400" alt="20260915_001017" src="https://github.com/user-attachments/assets/d6052a8d-8d55-4d72-9f41-03fd66f49450" />
+<img width="300" height="400" alt="20260916_021638" src="https://github.com/user-attachments/assets/236aeb9d-eb5f-4bbc-95fd-6f1664392630" />
 
 
 The process required steady hands and a lot of tacky flux:
