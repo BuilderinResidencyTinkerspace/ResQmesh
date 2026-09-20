@@ -50,6 +50,7 @@ On Core 1, our flight loop runs strictly every **2,000 microseconds** ($2.0\text
 5. **Hardware PWM Output:** Writes 10-bit duty cycles to the 20 kHz LEDC timers.
 
 We measured our total loop execution time on an oscilloscope GPIO toggle: **$420\ \mu\text{s}$ out of our $2000\ \mu\text{s}$ budget.** That leaves over **75% idle CPU headroom** on Core 1!
+https://github.com/user-attachments/assets/3c066aa0-1caa-42c5-9b14-0a82dfd169a4
 
 ---
 
