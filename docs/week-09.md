@@ -42,8 +42,11 @@ We wrote a minimal PWM test script to spin Motor 1 at 25% duty cycle. We plugged
 
 At standard microcontroller PWM frequencies (1 kHz to 4 kHz), the rapid pulsing of current through the motor windings causes the motor casing and armature coils to physically vibrate at audio frequencies. It turns the motors into tiny mechanical loudspeakers.
 
+<img width="3000" height="4000" alt="20260916_021717" src="https://github.com/user-attachments/assets/6bcd863d-0023-4480-bb05-3fd2dc7437d5" />
+<img width="3000" height="4000" alt="20260916_021621" src="https://github.com/user-attachments/assets/b529c152-4761-4425-8265-3f8ce85b4dfb" />
+<img width="3000" height="4000" alt="20260916_021721" src="https://github.com/user-attachments/assets/9ccbea4e-9a25-4297-b64e-da159fef2e4f" />
 
-https://github.com/user-attachments/assets/e0b50fa9-7566-4cdf-a869-a46f64c3b0b5
+
 
 
 
