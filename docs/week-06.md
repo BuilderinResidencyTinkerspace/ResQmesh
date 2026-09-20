@@ -64,7 +64,7 @@ By the end of the week, our physical wiring harness was fully mapped to the Seee
 | **3V3** | — | Regulated 3.3V Out | Dedicated quiet power rail to MPU9250 IMU |
 | **GND** | — | Logic Ground | Star-ground tie point to battery negative terminal |
 <img width="430" height="550" alt="WhatsApp Image 2026-09-20 at 9 37 58 AM" src="https://github.com/user-attachments/assets/a9a54c20-0ad5-4db5-9d83-a4f46e3e1392" />
-<img width="300" height="400" alt="20260916_021730" src="https://github.com/user-attachments/assets/183089fb-b13e-42bd-89ec-64ee2dae1e5a" />
+<img width="450" height="600" alt="20260916_021730" src="https://github.com/user-attachments/assets/183089fb-b13e-42bd-89ec-64ee2dae1e5a" />
 
 
 https://github.com/user-attachments/assets/fb0bdad3-6bdf-4919-a269-c35ca3fdb0d8
