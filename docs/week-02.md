@@ -29,6 +29,7 @@ This was the breakthrough. We abandoned round ducts and went for an open Quad-X 
 - **Flight Controller Standoffs:** Built raised vibration-dampening mounting pads in the center to isolate the XIAO ESP32-S3 and IMU from motor shock.
 
 ---
+<img width="960" height="1280" alt="WhatsApp Image 2026-09-19 at 11 42 30 PM" src="https://github.com/user-attachments/assets/5a3657c1-ced0-45d3-8f94-5abad89dd749" />
 
 ## The 0.15mm Slicer Headache
 
