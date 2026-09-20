@@ -1,9 +1,3 @@
-
-
-https://github.com/user-attachments/assets/deffcf43-43b4-4df2-ba73-2a8a2df3ad9f
-
-
-
 # Week 9: SOT-23 Tweezers, Solder Fumes & 20 kHz Ultrasonic Silence
 
 If you want to test your soldering sanity, try hand-soldering four surface-mount SOT-23 MOSFETs—each about the size of a sesame seed—onto a perfboard scrap using tweezers and a magnifying glass while breathing through a fume extractor.
@@ -48,6 +42,10 @@ We wrote a minimal PWM test script to spin Motor 1 at 25% duty cycle. We plugged
 
 At standard microcontroller PWM frequencies (1 kHz to 4 kHz), the rapid pulsing of current through the motor windings causes the motor casing and armature coils to physically vibrate at audio frequencies. It turns the motors into tiny mechanical loudspeakers.
 https://github.com/user-attachments/assets/74eea530-8851-472d-b9d1-078b9d55eaa6
+
+
+https://github.com/user-attachments/assets/e0b50fa9-7566-4cdf-a869-a46f64c3b0b5
+
 
 
 ```
