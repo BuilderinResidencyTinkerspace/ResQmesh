@@ -85,6 +85,9 @@ When we shifted to a reinforced unibody design, our 7.00mm motor bores came off 
 Most DIY drone projects try to drive standard power MOSFETs directly from 3.3V microcontroller pins, only to discover that the FETs never fully turn on. Standard gates require 4.5V to 10V to reach saturation. Driven with 3.3V, they act like high-resistance heaters, drop the battery voltage, and toast themselves.
 
 Digging deep into datasheets, we uncovered the **AO3400A N-Channel MOSFET** in an ultra-compact SOT-23 package. With a gate threshold voltage ($V_{gs(\text{th})}$) between **0.65V and 1.45V**, it is slammed completely into full saturation by the ESP32-S3's 3.3V logic. At $R_{ds(\text{on})} < 30\text{ m}\Omega$, it switches 2A of motor current with virtually zero thermal dissipation, eliminating the weight and cost of dedicated gate driver ICs.
+<img width="540" height="437" alt="WhatsApp Image 2026-09-19 at 11 45 43 PM" src="https://github.com/user-attachments/assets/f3af1369-831d-4da4-bbf5-67bac278a304" /><img width="3000" height="4000" alt="20260915_001343" src="https://github.com/user-attachments/assets/612f8420-ded1-4aef-abe0-3330923fd022" />
+
+
 
 #### 3. Taming Motor EMI Noise
 Brushed coreless motors at 50,000 RPM are miniature spark transmitters. Mechanical brush commutation produces violent micro-arcing, radiating electromagnetic noise straight into low-voltage sensor lines. Our first physical wiring run threw random I2C bus lockups on the MPU9250.
