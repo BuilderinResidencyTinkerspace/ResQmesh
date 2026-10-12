@@ -65,7 +65,7 @@ Meanwhile, off-the-shelf toy micro-drones are cheap ($20–$30), but their hardw
 
 ### The ₹3,000 Swarm Gamble
 We asked a deceptively simple question:  
-*Can we build an open-source, resilient, autonomous micro-drone swarm platform where each unit costs **less than ₹2,500 ($25)**, weighs **under 35 grams**, and runs a deterministic **500 Hz hard-real-time flight loop** alongside **peer-to-peer mesh radio**?*
+*Can we build an open-source, resilient, autonomous micro-drone swarm platform where each unit costs **less than ₹2,500 ($25)**, weighs **under 60j grams**, and runs a deterministic **500 Hz hard-real-time flight loop** alongside **peer-to-peer mesh radio**?*
 
 Ten weeks ago, this was just numbers scrawled across a workbench whiteboard. To hit this threshold, off-the-shelf flight stacks like Betaflight or ArduPilot were non-starters: they are built around dedicated RC receivers (ELRS/CRSF), expect STM32 hardware, and do not accommodate low-overhead, peer-to-peer swarm messaging on ESP32 silicon. 
 
@@ -77,6 +77,8 @@ We had to write our own flight controller and mesh communication stack from scra
 Before you write a single line of flight code, your drone must obey Newton. Our early 5.0g skeletal 3D-printed frame flexed like a wet noodle when the motors spooled up. Under full thrust, the motor pods deflected by nearly 3°, causing the IMU to measure the bending of the plastic instead of the attitude of the aircraft. 
 
 When we shifted to a reinforced unibody design, our 7.00mm motor bores came off the 3D printer measuring 6.85mm due to thermal plastic shrinkage. Pressing a motor in by hand resulted in a sickening *snap* down the layer lines. The solution wasn't buying expensive carbon fiber; it was dialing in **`+0.12mm Horizontal Hole Expansion`** in the slicer, yielding a rigid 7.4g unibody with an exact 7.02mm friction fit.
+<img width="960" height="731" alt="WhatsApp Image 2026-09-19 at 11 42 30 PM - Copy" src="https://github.com/user-attachments/assets/a44a67c5-bc91-483c-82f1-ed9eb34354b0" />
+
 
 #### 2. The SOT-23 MOSFET Discovery
 Most DIY drone projects try to drive standard power MOSFETs directly from 3.3V microcontroller pins, only to discover that the FETs never fully turn on. Standard gates require 4.5V to 10V to reach saturation. Driven with 3.3V, they act like high-resistance heaters, drop the battery voltage, and toast themselves.
