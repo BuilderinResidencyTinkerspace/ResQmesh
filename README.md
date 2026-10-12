@@ -77,7 +77,7 @@ We had to write our own flight controller and mesh communication stack from scra
 Before you write a single line of flight code, your drone must obey Newton. Our early 5.0g skeletal 3D-printed frame flexed like a wet noodle when the motors spooled up. Under full thrust, the motor pods deflected by nearly 3°, causing the IMU to measure the bending of the plastic instead of the attitude of the aircraft. 
 
 When we shifted to a reinforced unibody design, our 7.00mm motor bores came off the 3D printer measuring 6.85mm due to thermal plastic shrinkage. Pressing a motor in by hand resulted in a sickening *snap* down the layer lines. The solution wasn't buying expensive carbon fiber; it was dialing in **`+0.12mm Horizontal Hole Expansion`** in the slicer, yielding a rigid 7.4g unibody with an exact 7.02mm friction fit.
-<img width="960" height="731" alt="WhatsApp Image 2026-09-19 at 11 42 30 PM - Copy" src="https://github.com/user-attachments/assets/a44a67c5-bc91-483c-82f1-ed9eb34354b0" />
+<img width="480" height="360" alt="WhatsApp Image 2026-09-19 at 11 42 30 PM - Copy" src="https://github.com/user-attachments/assets/a44a67c5-bc91-483c-82f1-ed9eb34354b0" />
 
 
 #### 2. The SOT-23 MOSFET Discovery
