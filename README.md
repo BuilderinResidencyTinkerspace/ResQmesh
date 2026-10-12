@@ -10,7 +10,7 @@
 [![Unit Cost](https://img.shields.io/badge/Unit%20Cost-%3C%20%E2%82%B92%2C250%20%2F%20%2425-orange.svg)](#complete-bill-of-materials-bom--budget)
 
 *An ultra-affordable (<$25 / ₹2,224), open-source micro-quadcopter swarm platform powered by the ESP32-S3 ecosystem, engineered for distributed sensing, ad-hoc emergency mesh communication, and collaborative autonomous aerial coordination.*
-https://youtu.be/m4jHtg0Pzuk?si=T0-xIfZNASLAHcfR
+[![Alt Text](https://youtu.be/m4jHtg0Pzuk?si=T0-xIfZNASLAHcfR)
 
 </div>
 
