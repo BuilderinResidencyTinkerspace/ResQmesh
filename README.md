@@ -539,4 +539,4 @@ ResQmesh/
 This project is licensed under the **MIT License** — feel free to modify, replicate, and deploy for educational, research, or commercial swarm applications.
 
 **Developed as part of the Builder-in-Residence Program.**  
-*Lead Engineer: Jayasurya Jayakumar*
+*Engineers: Jayasurya Jayakumar, Nikhil S*
