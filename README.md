@@ -98,7 +98,7 @@ We cured this with three physical design rules:
 - **Star Grounding:** Routing high-current motor return paths directly to the battery negative pad, physically isolating them from the microcontroller's logic ground.
 
 ### The Breakthrough: "It Fights Back!"
-In Week 10, all subsystems converged. We held the 32.2g quadcopter loosely between two fingers, armed the flight controller, and bumped the throttle to 25%. The four 55mm props spun into a quiet, vibration-free blur at 20 kHz ultrasonic PWM.
+In Week 10, all subsystems converged. We held the 58g quadcopter loosely between two fingers, armed the flight controller, and bumped the throttle to 25%. The four 55mm props spun into a quiet, vibration-free blur at 20 kHz ultrasonic PWM.
 
 When we pushed the nose down with a finger, the front two motors instantly surged with increased RPM while the rear two backed off, delivering a firm, gyroscopic counter-torque right into our fingertips. When we tilted it left, the left motors roared to restore level flight.
 
