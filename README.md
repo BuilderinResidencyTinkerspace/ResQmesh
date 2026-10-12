@@ -220,6 +220,8 @@ Every part on this list is readily available from standard hobby robotics retail
                    POWER STAR GROUND
              (Direct to LiPo Battery Negative)
 ```
+<img width="1132" height="797" alt="WhatsApp Image 2026-09-19 at 11 44 38 PM" src="https://github.com/user-attachments/assets/da9de737-369d-43b8-bcf4-7939ed6f133f" />
+
 
 ### Driver Circuit Design & MOSFET Selection
 1. **AO3400A Logic-Level Gate Drive**: Directly driven from 3.3V GPIO through a $100\ \Omega$ series damping resistor to suppress high-frequency LC gate ringing ($C_{iss} \approx 650\text{ pF}$).
